@@ -56,8 +56,21 @@ function showToast(message) {
 }
 
 // =========================================
-// 2. NAVEGAÇÃO SPA E PROTEÇÃO DE ROTAS
+// 2. MENU MOBILE E NAVEGAÇÃO SPA
 // =========================================
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileDrawer = document.getElementById('mobileDrawer');
+
+if (mobileMenuBtn && mobileDrawer) {
+  mobileMenuBtn.addEventListener('click', () => {
+    mobileDrawer.classList.toggle('open');
+  });
+}
+
+function closeMobileMenu() {
+  if (mobileDrawer) mobileDrawer.classList.remove('open');
+}
+
 function navigateTo(pageName) {
   const user = getLoggedUser();
 
@@ -77,10 +90,11 @@ function navigateTo(pageName) {
   const targetView = document.getElementById(`view-${pageName}`);
   if (targetView) targetView.classList.add('active');
 
-  document.querySelectorAll('.nav-links a').forEach(link => {
+  document.querySelectorAll('.nav-links a, .mobile-drawer a').forEach(link => {
     link.classList.toggle('active', link.dataset.nav === pageName);
   });
 
+  closeMobileMenu();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   updateNavbarAuth();
@@ -245,11 +259,10 @@ function renderDashboard() {
     : `${userProducts.length} de 10 itens (Plano Starter)`;
 
   banner.innerHTML = `
-    <span>Conta: <strong>${user.name}</strong> (${user.email}) · Assinatura: <strong>Plano ${user.plan}</strong> (${user.billing}).</span>
+    <span>Conta: <strong>${user.name}</strong> · Assinatura: <strong>Plano ${user.plan}</strong> (${user.billing}).</span>
     <a href="#planos" onclick="navigateTo('planos'); return false;" style="color: #2563eb; font-weight: 600; text-decoration: none;">Alterar plano →</a>
   `;
 
-  // Filtragem
   const searchTerm = searchInput.value.toLowerCase();
   const selectedCategory = categoryFilter.value;
   const selectedStatus = statusFilter.value;
@@ -266,7 +279,6 @@ function renderDashboard() {
     return matchesName && matchesCategory && matchesStatus;
   });
 
-  // 1. Atualizar KPIs
   document.getElementById('kpiTotal').textContent = filtered.length;
 
   const avgUser = filtered.length
@@ -296,18 +308,16 @@ function renderDashboard() {
     diffLabel.className = 'kpi-trend trend-down';
   }
 
-  // 2. Renderizar Gráficos e Insights (com base em todo o catálogo do usuário)
   renderCharts(userProducts);
   renderInsights(userProducts);
 
-  // 3. Renderizar Tabela
   const tableBody = document.getElementById('productsTableBody');
   tableBody.innerHTML = '';
 
   if (filtered.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; padding: 32px; color: #6b7280;">
+        <td colspan="7" style="text-align: center; padding: 32px; color: #6b7280; justify-content: center;">
           Nenhum produto encontrado para os filtros atuais.
         </td>
       </tr>
@@ -325,13 +335,13 @@ function renderDashboard() {
 
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><strong>${item.name}</strong></td>
-      <td><span class="badge-cat">${item.category}</span></td>
-      <td><strong>${formatCurrency(item.price)}</strong></td>
-      <td>${formatCurrency(item.market)}</td>
-      <td><span class="badge-var ${badgeClass}">${sign}${diffPercent}%</span></td>
-      <td><span class="status-pill ${statusClass}">${statusText}</span></td>
-      <td>
+      <td data-label="Produto"><strong>${item.name}</strong></td>
+      <td data-label="Categoria"><span class="badge-cat">${item.category}</span></td>
+      <td data-label="Seu Preço"><strong>${formatCurrency(item.price)}</strong></td>
+      <td data-label="Média Mercado">${formatCurrency(item.market)}</td>
+      <td data-label="Diferença"><span class="badge-var ${badgeClass}">${sign}${diffPercent}%</span></td>
+      <td data-label="Status"><span class="status-pill ${statusClass}">${statusText}</span></td>
+      <td data-label="Ações">
         <div class="table-actions">
           <button type="button" class="btn-edit" onclick="openEditModal(${item.id})">Editar</button>
           <button type="button" class="btn-delete" onclick="deleteProduct(${item.id})">Remover</button>
@@ -342,7 +352,6 @@ function renderDashboard() {
   });
 }
 
-// Renderiza os dois gráficos visuais
 function renderCharts(userProducts) {
   const compContainer = document.getElementById('priceComparisonChart');
   const catContainer = document.getElementById('categoryDistributionChart');
@@ -353,7 +362,6 @@ function renderCharts(userProducts) {
     return;
   }
 
-  // Gráfico 1: Comparativo (top 5 produtos)
   const topProducts = userProducts.slice(0, 5);
   const maxVal = Math.max(...topProducts.map(p => Math.max(p.price, p.market)));
 
@@ -374,7 +382,6 @@ function renderCharts(userProducts) {
     `;
   }).join('');
 
-  // Gráfico 2: Distribuição por Categoria
   const categoryMap = {};
   userProducts.forEach(p => {
     if (!categoryMap[p.category]) categoryMap[p.category] = { count: 0, totalValue: 0 };
@@ -398,7 +405,6 @@ function renderCharts(userProducts) {
   }).join('');
 }
 
-// Gera dicas inteligentes personalizadas com base nos números reais do usuário
 function renderInsights(userProducts) {
   const grid = document.getElementById('smartInsightsGrid');
 
@@ -413,11 +419,9 @@ function renderInsights(userProducts) {
     return;
   }
 
-  // Encontra o item mais barato que o mercado (oportunidade de aumentar lucro)
   const cheapest = [...userProducts].sort((a, b) => (a.price - a.market) / a.market - (b.price - b.market) / b.market)[0];
   const cheapestDiff = (((cheapest.price - cheapest.market) / cheapest.market) * 100).toFixed(1);
 
-  // Encontra o item mais caro que o mercado (risco de perder vendas)
   const mostExpensive = [...userProducts].sort((a, b) => (b.price - b.market) / b.market - (a.price - a.market) / a.market)[0];
   const expensiveDiff = (((mostExpensive.price - mostExpensive.market) / mostExpensive.market) * 100).toFixed(1);
 
@@ -697,5 +701,4 @@ paymentForm.addEventListener('submit', (e) => {
   }, 1200);
 });
 
-// Inicializa a barra superior ao carregar
 updateNavbarAuth();

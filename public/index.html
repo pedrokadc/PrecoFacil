@@ -21,16 +21,32 @@
             <line x1="7" y1="7" x2="7.01" y2="7"></line>
           </svg>
         </div>
-        Preço fácil
+        <span>Preço fácil</span>
       </a>
 
-      <ul class="nav-links">
+      <ul class="nav-links" id="navLinks">
         <li><a href="#home" data-nav="home" class="active" onclick="navigateTo('home'); return false;">Home</a></li>
         <li><a href="#dashboard" data-nav="dashboard" onclick="navigateTo('dashboard'); return false;">Dashboard</a></li>
         <li><a href="#planos" data-nav="planos" onclick="navigateTo('planos'); return false;">Pay <span class="dot">·</span> Planos</a></li>
       </ul>
 
-      <div id="navAuthArea"></div>
+      <div class="nav-right">
+        <div id="navAuthArea"></div>
+        <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Abrir menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- MENU DROPDOWN MOBILE -->
+    <div class="mobile-drawer" id="mobileDrawer">
+      <a href="#home" data-nav="home" class="active" onclick="navigateTo('home'); closeMobileMenu(); return false;">Home</a>
+      <a href="#dashboard" data-nav="dashboard" onclick="navigateTo('dashboard'); closeMobileMenu(); return false;">Dashboard</a>
+      <a href="#planos" data-nav="planos" onclick="navigateTo('planos'); closeMobileMenu(); return false;">Pay · Planos</a>
     </div>
   </header>
 
@@ -41,7 +57,7 @@
     <div id="view-home" class="page-view active">
       <section class="hero-section">
         <div class="hero-container">
-          <div>
+          <div class="hero-content">
             <span class="hero-eyebrow">Inteligência de preços sem complicação</span>
             <h1 class="hero-title">O preço certo, na hora certa.</h1>
             <p class="hero-subtitle">
@@ -64,7 +80,7 @@
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                 <polyline points="22 4 12 14.01 9 11.01"></polyline>
               </svg>
-              Crie sua conta e ative um plano para liberar o painel
+              <span>Crie sua conta e ative um plano para liberar o painel</span>
             </div>
           </div>
 
@@ -73,21 +89,23 @@
               <img src="https://images.unsplash.com/photo-1556740758-90de374c12ad?auto=format&fit=crop&w=800&q=80" alt="Lojista analisando preços no tablet">
             </div>
 
-            <div class="float-card-top">
-              <span class="float-label">Visão de preços</span>
-              <h4>Em um só lugar</h4>
-              <span class="float-badge">Mais clareza para decidir</span>
-            </div>
+            <div class="hero-floating-group">
+              <div class="float-card-top">
+                <span class="float-label">Visão de preços</span>
+                <h4>Em um só lugar</h4>
+                <span class="float-badge">Mais clareza para decidir</span>
+              </div>
 
-            <div class="float-card-bottom">
-              <span class="float-label">Comparação rápida</span>
-              <h4>Simples de ler</h4>
-              <div class="mini-bars">
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar active"></div>
+              <div class="float-card-bottom">
+                <span class="float-label">Comparação rápida</span>
+                <h4>Simples de ler</h4>
+                <div class="mini-bars">
+                  <div class="bar"></div>
+                  <div class="bar"></div>
+                  <div class="bar"></div>
+                  <div class="bar"></div>
+                  <div class="bar active"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -324,7 +342,6 @@
 
         <!-- 2. GRÁFICOS VISUAIS -->
         <div class="charts-grid">
-          <!-- Gráfico 1: Comparativo de Preços -->
           <div class="chart-card">
             <div class="chart-header">
               <div>
@@ -339,7 +356,6 @@
             <div id="priceComparisonChart" class="bar-chart-container"></div>
           </div>
 
-          <!-- Gráfico 2: Distribuição por Categoria -->
           <div class="chart-card">
             <div class="chart-header">
               <div>
@@ -378,7 +394,7 @@
         </div>
 
         <div class="table-wrapper">
-          <table>
+          <table class="responsive-table">
             <thead>
               <tr>
                 <th>Produto</th>
