@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Preço Fácil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- BARRA DE NAVEGAÇÃO -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+        </div>
+        Preço fácil
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="dashboard.html" class="active">Dashboard</a></li>
+        <li><a href="planos.html">Pay <span class="dot">·</span> Planos</a></li>
+      </ul>
+
+      <a href="planos.html" class="nav-cta">
+        Ver planos
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="7" y1="17" x2="17" y2="7"></line>
+          <polyline points="7 7 17 7 17 17"></polyline>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <div class="dash-header">
+      <div>
+        <span class="eyebrow">Painel Demonstrativo</span>
+        <h1 class="main-title">Visão centralizada de preços</h1>
+        <p class="main-subtitle">Acompanhe valores, compare variações e gerencie seu catálogo em tempo real.</p>
+      </div>
+      <button id="openModalBtn" class="cta-button">+ Novo produto</button>
+    </div>
+
+    <!-- INDICADORES (KPIs) -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Produtos monitorados</span>
+        <div class="kpi-value" id="kpiTotal">0</div>
+        <span class="kpi-trend trend-neutral">Catálogo ativo</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Preço médio</span>
+        <div class="kpi-value" id="kpiAvg">R$ 0,00</div>
+        <span class="kpi-trend trend-up">Atualizado agora</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Maior oportunidade</span>
+        <div class="kpi-value">-12%</div>
+        <span class="kpi-trend trend-up">Abaixo da média</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Variação semanal</span>
+        <div class="kpi-value">+2,4%</div>
+        <span class="kpi-trend trend-down">3 itens reajustados</span>
+      </div>
+    </div>
+
+    <!-- BUSCA E FILTROS -->
+    <div class="filters-bar">
+      <input type="text" id="searchInput" class="search-input" placeholder="Buscar produto por nome ou código...">
+      <select id="categoryFilter" class="select-input">
+        <option value="todas">Todas as categorias</option>
+        <option value="Vestuário">Vestuário</option>
+        <option value="Calçados">Calçados</option>
+        <option value="Acessórios">Acessórios</option>
+        <option value="Eletrônicos">Eletrônicos</option>
+      </select>
+    </div>
+
+    <!-- TABELA DE PRODUTOS -->
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Produto</th>
+            <th>Categoria</th>
+            <th>Seu Preço</th>
+            <th>Média Mercado</th>
+            <th>Variação</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="productsTableBody">
+          <!-- Preenchido via script.js -->
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- MODAL PARA ADICIONAR PRODUTO -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal-box">
+      <h3>Adicionar novo produto</h3>
+      <form id="productForm">
+        <div class="form-group">
+          <label for="prodName">Nome do produto</label>
+          <input type="text" id="prodName" required placeholder="Ex: Camisa Linho Azul">
+        </div>
+        <div class="form-group">
+          <label for="prodCategory">Categoria</label>
+          <select id="prodCategory">
+            <option value="Vestuário">Vestuário</option>
+            <option value="Calçados">Calçados</option>
+            <option value="Acessórios">Acessórios</option>
+            <option value="Eletrônicos">Eletrônicos</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="prodPrice">Seu Preço (R$)</label>
+          <input type="number" id="prodPrice" step="0.01" required placeholder="149.90">
+        </div>
+        <div class="form-group">
+          <label for="prodMarket">Média do Mercado (R$)</label>
+          <input type="number" id="prodMarket" step="0.01" required placeholder="169.90">
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="closeModalBtn" class="btn-cancel">Cancelar</button>
+          <button type="submit" class="cta-button">Salvar produto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    © 2026 Preço Fácil. Todos os direitos reservados.
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
