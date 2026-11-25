@@ -1,7 +1,8 @@
 // =========================================
-// 1. BANCO DE DADOS LOCAL SEPARADO POR USUÁRIO
+// 1. BANCO DE DADOS SQLITE COM GRAVAÇÃO OBRIGATÓRIA EM DISCO RÍGIDO
 // =========================================
-const DB_KEY = 'preco_facil_sistema_v3';
+const SQLITE_BIN_KEY = 'preco_facil_sqlite_binary_v2';
+const SESSION_KEY = 'preco_facil_session_user_id';
 
 const defaultProductsTemplate = [
   { name: "Jaqueta Corta-Vento Minimal", category: "Vestuário", price: 249.90, market: 279.90 },
@@ -11,72 +12,522 @@ const defaultProductsTemplate = [
   { name: "Relógio Smart Fit Pro", category: "Eletrônicos", price: 459.00, market: 440.00 }
 ];
 
-function getDB() {
+let SQLInstance = null;
+let sqliteDB = null;
+let diskFileHandle = null;
+let linkedFileName = null;
+
+function createTablesIfNeeded(db) {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      plan TEXT,
+      billing TEXT
+    );
+    CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY,
+      userId INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      price REAL NOT NULL,
+      market REAL NOT NULL
+    );
+  `);
+}
+
+function updateDiskSyncUI() {
+  const btn = document.getElementById('btnDiskSync');
+  const label = document.getElementById('diskSyncLabel');
+  if (!btn || !label) return;
+
+  if (diskFileHandle && linkedFileName) {
+    btn.classList.add('connected');
+    label.textContent = `HD: ${linkedFileName}`;
+  } else {
+    btn.classList.remove('connected');
+    label.textContent = 'Salvar .sqlite no PC';
+  }
+}
+
+// Grava o arquivo binário .sqlite diretamente no disco rígido
+async function writeSQLiteToHardDrive(forcePrompt = false) {
+  if (!sqliteDB) return;
+  const binaryData = sqliteDB.export();
+
+  // Backup automático de segurança na sessão local
   try {
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw);
+    localStorage.setItem(SQLITE_BIN_KEY, JSON.stringify(Array.from(binaryData)));
   } catch (e) {}
 
-  const initial = {
-    users: [],
-    currentUserId: null,
-    products: []
-  };
-  saveDB(initial);
-  return initial;
+  // Se o navegador suportar File System Access API (Chrome, Edge, Opera)
+  if ('showSaveFilePicker' in window) {
+    try {
+      if (!diskFileHandle && forcePrompt) {
+        diskFileHandle = await window.showSaveFilePicker({
+          suggestedName: 'preco_facil.sqlite',
+          types: [{
+            description: 'Banco de Dados SQLite',
+            accept: { 'application/x-sqlite3': ['.sqlite', '.db'] }
+          }]
+        });
+        linkedFileName = diskFileHandle.name;
+      }
+
+      if (diskFileHandle) {
+        const writable = await diskFileHandle.createWritable();
+        await writable.write(binaryData);
+        await writable.close();
+        updateDiskSyncUI();
+        return true;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return false;
+    }
+  }
+
+  // Fallback obrigatório: baixa o arquivo .sqlite para a pasta Downloads do computador
+  if (forcePrompt) {
+    const blob = new Blob([binaryData], { type: 'application/x-sqlite3' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = linkedFileName || 'preco_facil.sqlite';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Arquivo preco_facil.sqlite baixado no seu computador!');
+    return true;
+  }
+
+  return false;
 }
 
-function saveDB(data) {
+async function connectOrSaveSQLiteFile() {
+  if (!sqliteDB) {
+    showToast('Aguarde o motor SQLite inicializar...');
+    return;
+  }
+  const saved = await writeSQLiteToHardDrive(true);
+  if (saved && diskFileHandle) {
+    showToast(`Banco SQLite vinculado e salvo em: ${linkedFileName}`);
+    if (document.getElementById('view-dashboard')?.classList.contains('active')) {
+      renderDashboard();
+    }
+  }
+}
+
+// Permite abrir um arquivo .sqlite já existente no disco rígido do computador
+async function openSQLiteFileFromDisk() {
+  if (!SQLInstance) {
+    showToast('Aguarde o motor SQLite carregar...');
+    return;
+  }
+
   try {
-    localStorage.setItem(DB_KEY, JSON.stringify(data));
-  } catch (e) {}
+    if ('showOpenFilePicker' in window) {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'Banco de Dados SQLite',
+          accept: { 'application/x-sqlite3': ['.sqlite', '.db'] }
+        }],
+        multiple: false
+      });
+      const file = await handle.getFile();
+      const buffer = await file.arrayBuffer();
+      sqliteDB = new SQLInstance.Database(new Uint8Array(buffer));
+      createTablesIfNeeded(sqliteDB);
+      diskFileHandle = handle;
+      linkedFileName = handle.name;
+      updateDiskSyncUI();
+      await writeSQLiteToHardDrive(false);
+
+      // Se existir um usuário no arquivo aberto, loga automaticamente
+      const stmt = sqliteDB.prepare('SELECT * FROM users LIMIT 1');
+      if (stmt.step()) {
+        const firstUser = stmt.getAsObject();
+        DB.setCurrentUserId(firstUser.id);
+        stmt.free();
+        showToast(`Arquivo ${linkedFileName} carregado! Bem-vindo, ${firstUser.name}.`);
+        navigateTo(firstUser.plan ? 'dashboard' : 'planos');
+        return;
+      }
+      stmt.free();
+      showToast(`Arquivo ${linkedFileName} conectado ao sistema!`);
+    } else {
+      // Fallback via input file para Firefox/Safari
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.sqlite,.db';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const buffer = await file.arrayBuffer();
+        sqliteDB = new SQLInstance.Database(new Uint8Array(buffer));
+        createTablesIfNeeded(sqliteDB);
+        linkedFileName = file.name;
+        await writeSQLiteToHardDrive(false);
+        const stmt = sqliteDB.prepare('SELECT * FROM users LIMIT 1');
+        if (stmt.step()) {
+          const firstUser = stmt.getAsObject();
+          DB.setCurrentUserId(firstUser.id);
+          stmt.free();
+          showToast(`Banco ${file.name} importado!`);
+          navigateTo(firstUser.plan ? 'dashboard' : 'planos');
+          return;
+        }
+        stmt.free();
+      };
+      input.click();
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      showToast('Não foi possível abrir o arquivo SQLite selecionado.');
+    }
+  }
 }
 
-let db = getDB();
+async function initDatabaseEngine() {
+  try {
+    let attempts = 0;
+    while (typeof initSqlJs !== 'function' && attempts < 30) {
+      await new Promise(r => setTimeout(r, 100));
+      attempts++;
+    }
 
-function getLoggedUser() {
-  db = getDB();
-  if (!db.currentUserId) return null;
-  return db.users.find(u => u.id === db.currentUserId) || null;
+    SQLInstance = await initSqlJs({
+      locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+    });
+
+    const savedBinary = localStorage.getItem(SQLITE_BIN_KEY);
+    if (savedBinary) {
+      const u8 = new Uint8Array(JSON.parse(savedBinary));
+      sqliteDB = new SQLInstance.Database(u8);
+    } else {
+      sqliteDB = new SQLInstance.Database();
+    }
+
+    createTablesIfNeeded(sqliteDB);
+    updateNavbarAuth();
+    updateDiskSyncUI();
+  } catch (err) {
+    showToast('Erro ao carregar WebAssembly SQLite. Verifique sua conexão.');
+  }
 }
 
-function getUserProducts(userId) {
-  db = getDB();
-  return db.products.filter(p => p.userId === userId);
-}
+const DB = {
+  getCurrentUserId() {
+    const id = localStorage.getItem(SESSION_KEY);
+    return id ? Number(id) : null;
+  },
+
+  setCurrentUserId(id) {
+    if (id) localStorage.setItem(SESSION_KEY, String(id));
+    else localStorage.removeItem(SESSION_KEY);
+  },
+
+  getUserByEmail(email) {
+    if (!sqliteDB) return null;
+    const stmt = sqliteDB.prepare('SELECT * FROM users WHERE email = ?');
+    stmt.bind([email]);
+    const user = stmt.step() ? stmt.getAsObject() : null;
+    stmt.free();
+    return user;
+  },
+
+  getLoggedUser() {
+    const id = this.getCurrentUserId();
+    if (!id || !sqliteDB) return null;
+    const stmt = sqliteDB.prepare('SELECT * FROM users WHERE id = ?');
+    stmt.bind([id]);
+    const user = stmt.step() ? stmt.getAsObject() : null;
+    stmt.free();
+    return user;
+  },
+
+  async createUser(name, email, password) {
+    if (!sqliteDB) return null;
+    const newUserId = Date.now();
+    sqliteDB.run(
+      'INSERT INTO users (id, name, email, password, plan, billing) VALUES (?, ?, ?, ?, ?, ?)',
+      [newUserId, name, email, password, null, null]
+    );
+    defaultProductsTemplate.forEach((item, index) => {
+      sqliteDB.run(
+        'INSERT INTO products (id, userId, name, category, price, market) VALUES (?, ?, ?, ?, ?, ?)',
+        [newUserId + index + 1, newUserId, item.name, item.category, item.price, item.market]
+      );
+    });
+    this.setCurrentUserId(newUserId);
+    // Solicita salvar o arquivo .sqlite no disco rígido imediatamente ao criar conta
+    await writeSQLiteToHardDrive(true);
+    return newUserId;
+  },
+
+  async updateUserPlan(userId, plan, billing) {
+    if (!sqliteDB) return;
+    sqliteDB.run('UPDATE users SET plan = ?, billing = ? WHERE id = ?', [plan, billing, userId]);
+    await writeSQLiteToHardDrive(!diskFileHandle);
+  },
+
+  getUserProducts(userId) {
+    if (!sqliteDB) return [];
+    const stmt = sqliteDB.prepare('SELECT * FROM products WHERE userId = ? ORDER BY id DESC');
+    stmt.bind([userId]);
+    const list = [];
+    while (stmt.step()) {
+      list.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return list;
+  },
+
+  async addProduct(userId, name, category, price, market) {
+    if (!sqliteDB) return;
+    const id = Date.now();
+    sqliteDB.run(
+      'INSERT INTO products (id, userId, name, category, price, market) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, userId, name, category, price, market]
+    );
+    await writeSQLiteToHardDrive(!diskFileHandle);
+  },
+
+  async updateProduct(id, userId, name, category, price, market) {
+    if (!sqliteDB) return;
+    sqliteDB.run(
+      'UPDATE products SET name = ?, category = ?, price = ?, market = ? WHERE id = ? AND userId = ?',
+      [name, category, price, market, id, userId]
+    );
+    await writeSQLiteToHardDrive(!diskFileHandle);
+  },
+
+  async deleteProduct(id, userId) {
+    if (!sqliteDB) return;
+    sqliteDB.run('DELETE FROM products WHERE id = ? AND userId = ?', [id, userId]);
+    await writeSQLiteToHardDrive(!diskFileHandle);
+  }
+};
 
 function showToast(message) {
   const toast = document.getElementById('toastNotification');
   if (!toast) return;
   toast.textContent = message;
   toast.classList.add('show');
-  setTimeout(() => {
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => {
     toast.classList.remove('show');
   }, 3500);
 }
 
 // =========================================
-// 2. MENU MOBILE E NAVEGAÇÃO SPA
+// 2. SISTEMA DE ACESSIBILIDADE AVANÇADO (WCAG 2.1)
 // =========================================
-const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-const mobileDrawer = document.getElementById('mobileDrawer');
+const A11Y_STORAGE_KEY = 'preco_facil_a11y_prefs_v2';
+let currentFontZoom = 100;
 
-if (mobileMenuBtn && mobileDrawer) {
-  mobileMenuBtn.addEventListener('click', () => {
-    mobileDrawer.classList.toggle('open');
-  });
+function toggleA11yPanel() {
+  const panel = document.getElementById('a11yPanel');
+  const btn = document.getElementById('a11yToggleBtn');
+  if (!panel || !btn) return;
+  const isOpen = panel.classList.toggle('open');
+  btn.setAttribute('aria-expanded', String(isOpen));
 }
 
+function closeA11yPanel() {
+  const panel = document.getElementById('a11yPanel');
+  const btn = document.getElementById('a11yToggleBtn');
+  if (panel) panel.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+document.addEventListener('mousemove', (e) => {
+  const guide = document.getElementById('readingGuideBar');
+  if (guide && document.body.classList.contains('a11y-reading-guide')) {
+    guide.style.top = `${e.clientY}px`;
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.altKey && (e.key === 'a' || e.key === 'A')) {
+    e.preventDefault();
+    toggleA11yPanel();
+  }
+  if (e.key === 'Escape') {
+    closeA11yPanel();
+    closeProductModal();
+    closeCheckoutModal();
+    closeMobileMenu();
+  }
+});
+
+function saveA11yPrefs() {
+  const prefs = {
+    zoom: currentFontZoom,
+    contrast: document.body.classList.contains('a11y-high-contrast'),
+    grayscale: document.documentElement.classList.contains('a11y-grayscale'),
+    dyslexia: document.body.classList.contains('a11y-dyslexia'),
+    readingGuide: document.body.classList.contains('a11y-reading-guide'),
+    bigCursor: document.body.classList.contains('a11y-big-cursor'),
+    reduceMotion: document.body.classList.contains('a11y-reduce-motion'),
+    links: document.body.classList.contains('a11y-highlight-links')
+  };
+  try {
+    localStorage.setItem(A11Y_STORAGE_KEY, JSON.stringify(prefs));
+  } catch (e) {}
+}
+
+function applyFontZoom() {
+  document.documentElement.style.setProperty('--font-scale', (currentFontZoom / 100).toFixed(2));
+  const label = document.getElementById('fontZoomLabel');
+  if (label) label.textContent = `${currentFontZoom}%`;
+}
+
+function loadA11yPrefs() {
+  try {
+    const raw = localStorage.getItem(A11Y_STORAGE_KEY);
+    if (!raw) return;
+    const prefs = JSON.parse(raw);
+
+    if (prefs.zoom) {
+      currentFontZoom = prefs.zoom;
+      applyFontZoom();
+    }
+
+    const map = [
+      { flag: prefs.contrast, cls: 'a11y-high-contrast', btnId: 'btnContrast', target: document.body },
+      { flag: prefs.grayscale, cls: 'a11y-grayscale', btnId: 'btnGrayscale', target: document.documentElement },
+      { flag: prefs.dyslexia, cls: 'a11y-dyslexia', btnId: 'btnDyslexia', target: document.body },
+      { flag: prefs.readingGuide, cls: 'a11y-reading-guide', btnId: 'btnReadingGuide', target: document.body },
+      { flag: prefs.bigCursor, cls: 'a11y-big-cursor', btnId: 'btnCursor', target: document.body },
+      { flag: prefs.reduceMotion, cls: 'a11y-reduce-motion', btnId: 'btnMotion', target: document.body },
+      { flag: prefs.links, cls: 'a11y-highlight-links', btnId: 'btnLinks', target: document.body }
+    ];
+
+    map.forEach(item => {
+      if (item.flag) {
+        item.target.classList.add(item.cls);
+        const btn = document.getElementById(item.btnId);
+        if (btn) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
+        }
+      }
+    });
+  } catch (e) {}
+}
+
+function changeFontSize(delta) {
+  currentFontZoom = Math.min(140, Math.max(80, currentFontZoom + delta));
+  applyFontZoom();
+  saveA11yPrefs();
+  showToast(`Tamanho do texto: ${currentFontZoom}%`);
+}
+
+function resetFontSize() {
+  currentFontZoom = 100;
+  applyFontZoom();
+  saveA11yPrefs();
+  showToast('Tamanho do texto restaurado (100%).');
+}
+
+function toggleA11yMode(className, btnEl) {
+  const target = className === 'a11y-grayscale' ? document.documentElement : document.body;
+  const isActive = target.classList.toggle(className);
+  if (btnEl) {
+    btnEl.classList.toggle('active', isActive);
+    btnEl.setAttribute('aria-pressed', String(isActive));
+  }
+  saveA11yPrefs();
+}
+
+function toggleScreenReader() {
+  const btn = document.getElementById('btnTTS');
+  if (!('speechSynthesis' in window)) {
+    showToast('Seu navegador não suporta leitura por voz.');
+    return;
+  }
+
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    if (btn) {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
+    }
+    showToast('Leitura por voz interrompida.');
+    return;
+  }
+
+  const activeView = document.querySelector('.page-view.active');
+  const readableNodes = activeView
+    ? activeView.querySelectorAll('h1, h2, h3, h4, p, td, th, .kpi-label, .kpi-value')
+    : document.querySelectorAll('h1, h2, p');
+
+  const textToRead = Array.from(readableNodes)
+    .map(el => el.innerText.trim())
+    .filter(Boolean)
+    .join('. ');
+
+  const utterance = new SpeechSynthesisUtterance(textToRead);
+  utterance.lang = 'pt-BR';
+  utterance.rate = 1.05;
+
+  utterance.onend = () => {
+    if (btn) {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
+    }
+  };
+
+  if (btn) {
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+  }
+  window.speechSynthesis.speak(utterance);
+  showToast('Lendo conteúdo da página em voz alta...');
+}
+
+function resetAllA11y() {
+  currentFontZoom = 100;
+  applyFontZoom();
+  document.documentElement.classList.remove('a11y-grayscale');
+  document.body.classList.remove(
+    'a11y-high-contrast',
+    'a11y-dyslexia',
+    'a11y-reading-guide',
+    'a11y-big-cursor',
+    'a11y-reduce-motion',
+    'a11y-highlight-links'
+  );
+  document.querySelectorAll('.a11y-opt-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-pressed', 'false');
+  });
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  try {
+    localStorage.removeItem(A11Y_STORAGE_KEY);
+  } catch (e) {}
+  showToast('Configurações de acessibilidade restauradas.');
+}
+
+// =========================================
+// 3. MENU MOBILE E NAVEGAÇÃO SPA
+// =========================================
 function closeMobileMenu() {
-  if (mobileDrawer) mobileDrawer.classList.remove('open');
+  const drawer = document.getElementById('mobileDrawer');
+  const btn = document.getElementById('mobileMenuBtn');
+  if (drawer) drawer.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
 function navigateTo(pageName) {
-  const user = getLoggedUser();
+  const user = DB.getLoggedUser();
 
   if (pageName === 'dashboard') {
     if (!user) {
-      showToast('Faça login ou crie uma conta para acessar o Dashboard.');
+      showToast('Faça login, crie uma conta ou abra seu arquivo .sqlite.');
       pageName = 'login';
     } else if (!user.plan) {
       showToast('Ative um plano (Starter grátis ou pago) para liberar o Dashboard.');
@@ -104,7 +555,8 @@ function navigateTo(pageName) {
 
 function updateNavbarAuth() {
   const navAuthArea = document.getElementById('navAuthArea');
-  const user = getLoggedUser();
+  if (!navAuthArea) return;
+  const user = DB.getLoggedUser();
 
   if (user) {
     const planLabel = user.plan ? user.plan : 'Sem plano';
@@ -127,130 +579,59 @@ function updateNavbarAuth() {
 }
 
 function logoutUser() {
-  db = getDB();
-  db.currentUserId = null;
-  saveDB(db);
+  DB.setCurrentUserId(null);
   showToast('Você saiu da sua conta.');
   navigateTo('home');
 }
 
 // =========================================
-// 3. LOGIN E CRIAR CONTA
+// 4. LOGIN E CRIAR CONTA
 // =========================================
-const tabLogin = document.getElementById('tabLogin');
-const tabRegister = document.getElementById('tabRegister');
-const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
-const authAlert = document.getElementById('authAlert');
+function switchAuthTab(mode) {
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const authAlert = document.getElementById('authAlert');
+
+  if (authAlert) authAlert.className = 'auth-alert';
+
+  if (mode === 'login') {
+    tabLogin.classList.add('active');
+    tabLogin.setAttribute('aria-selected', 'true');
+    tabRegister.classList.remove('active');
+    tabRegister.setAttribute('aria-selected', 'false');
+    loginForm.style.display = 'block';
+    registerForm.style.display = 'none';
+  } else {
+    tabRegister.classList.add('active');
+    tabRegister.setAttribute('aria-selected', 'true');
+    tabLogin.classList.remove('active');
+    tabLogin.setAttribute('aria-selected', 'false');
+    registerForm.style.display = 'block';
+    loginForm.style.display = 'none';
+  }
+}
 
 function showAuthAlert(msg, type) {
+  const authAlert = document.getElementById('authAlert');
+  if (!authAlert) return;
   authAlert.textContent = msg;
   authAlert.className = `auth-alert ${type}`;
 }
 
-tabLogin.addEventListener('click', () => {
-  tabLogin.classList.add('active');
-  tabRegister.classList.remove('active');
-  loginForm.style.display = 'block';
-  registerForm.style.display = 'none';
-  authAlert.className = 'auth-alert';
-});
-
-tabRegister.addEventListener('click', () => {
-  tabRegister.classList.add('active');
-  tabLogin.classList.remove('active');
-  registerForm.style.display = 'block';
-  loginForm.style.display = 'none';
-  authAlert.className = 'auth-alert';
-});
-
-registerForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const name = document.getElementById('regName').value.trim();
-  const email = document.getElementById('regEmail').value.trim().toLowerCase();
-  const password = document.getElementById('regPassword').value;
-
-  db = getDB();
-  if (db.users.some(u => u.email === email)) {
-    showAuthAlert('Este e-mail já está cadastrado. Faça login.', 'error');
-    return;
-  }
-
-  const newUserId = Date.now();
-  const newUser = {
-    id: newUserId,
-    name,
-    email,
-    password,
-    plan: null,
-    billing: null
-  };
-
-  defaultProductsTemplate.forEach((item, index) => {
-    db.products.push({
-      id: newUserId + index + 1,
-      userId: newUserId,
-      name: item.name,
-      category: item.category,
-      price: item.price,
-      market: item.market
-    });
-  });
-
-  db.users.push(newUser);
-  db.currentUserId = newUserId;
-  saveDB(db);
-
-  registerForm.reset();
-  authAlert.className = 'auth-alert';
-  showToast(`Bem-vindo, ${name}! Escolha um plano para liberar o Dashboard.`);
-  navigateTo('planos');
-});
-
-loginForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
-  const password = document.getElementById('loginPassword').value;
-
-  db = getDB();
-  const foundUser = db.users.find(u => u.email === email && u.password === password);
-
-  if (!foundUser) {
-    showAuthAlert('E-mail ou senha incorretos.', 'error');
-    return;
-  }
-
-  db.currentUserId = foundUser.id;
-  saveDB(db);
-
-  loginForm.reset();
-  authAlert.className = 'auth-alert';
-
-  if (foundUser.plan) {
-    showToast(`Login realizado! Bem-vindo de volta, ${foundUser.name}.`);
-    navigateTo('dashboard');
-  } else {
-    showToast('Login realizado! Escolha um plano para acessar o Dashboard.');
-    navigateTo('planos');
-  }
-});
-
 // =========================================
-// 4. DASHBOARD ANALÍTICO, GRÁFICOS E INSIGHTS
+// 5. DASHBOARD ANALÍTICO, GRÁFICOS E INSIGHTS
 // =========================================
 function formatCurrency(value) {
   return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-const searchInput = document.getElementById('searchInput');
-const categoryFilter = document.getElementById('categoryFilter');
-const statusFilter = document.getElementById('statusFilter');
-
 function renderDashboard() {
-  const user = getLoggedUser();
+  const user = DB.getLoggedUser();
   if (!user || !user.plan) return;
 
-  const userProducts = getUserProducts(user.id);
+  const userProducts = DB.getUserProducts(user.id);
   const banner = document.getElementById('userStatusBanner');
   const planLimitEl = document.getElementById('kpiPlanLimit');
 
@@ -258,14 +639,21 @@ function renderDashboard() {
     ? `Plano ${user.plan} (Ilimitado)`
     : `${userProducts.length} de 10 itens (Plano Starter)`;
 
+  const diskStatus = diskFileHandle
+    ? `SQLite Gravado em Disco (${linkedFileName})`
+    : 'SQLite Ativo (Clique em "Gravar .sqlite no PC" para vincular arquivo)';
+
   banner.innerHTML = `
-    <span>Conta: <strong>${user.name}</strong> · Assinatura: <strong>Plano ${user.plan}</strong> (${user.billing}).</span>
-    <a href="#planos" onclick="navigateTo('planos'); return false;" style="color: #2563eb; font-weight: 600; text-decoration: none;">Alterar plano →</a>
+    <span>
+      Conta: <strong>${user.name}</strong> · Plano: <strong>${user.plan}</strong> (${user.billing})
+      <span class="db-badge">${diskStatus}</span>
+    </span>
+    <a href="#planos" onclick="navigateTo('planos'); return false;" style="color: #1d4ed8; font-weight: 700; text-decoration: none;">Alterar plano →</a>
   `;
 
-  const searchTerm = searchInput.value.toLowerCase();
-  const selectedCategory = categoryFilter.value;
-  const selectedStatus = statusFilter.value;
+  const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const selectedCategory = document.getElementById('categoryFilter')?.value || 'todas';
+  const selectedStatus = document.getElementById('statusFilter')?.value || 'todos';
 
   const filtered = userProducts.filter(item => {
     const matchesName = item.name.toLowerCase().includes(searchTerm);
@@ -317,7 +705,7 @@ function renderDashboard() {
   if (filtered.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; padding: 32px; color: #6b7280; justify-content: center;">
+        <td colspan="7" style="text-align: center; padding: 32px; color: #4b5563; justify-content: center;">
           Nenhum produto encontrado para os filtros atuais.
         </td>
       </tr>
@@ -343,8 +731,8 @@ function renderDashboard() {
       <td data-label="Status"><span class="status-pill ${statusClass}">${statusText}</span></td>
       <td data-label="Ações">
         <div class="table-actions">
-          <button type="button" class="btn-edit" onclick="openEditModal(${item.id})">Editar</button>
-          <button type="button" class="btn-delete" onclick="deleteProduct(${item.id})">Remover</button>
+          <button type="button" class="btn-edit" onclick="openEditModal(${item.id})" aria-label="Editar ${item.name}">Editar</button>
+          <button type="button" class="btn-delete" onclick="deleteProduct(${item.id})" aria-label="Remover ${item.name}">Remover</button>
         </div>
       </td>
     `;
@@ -357,8 +745,8 @@ function renderCharts(userProducts) {
   const catContainer = document.getElementById('categoryDistributionChart');
 
   if (userProducts.length === 0) {
-    compContainer.innerHTML = '<p style="color:#6b7280; font-size:13px;">Cadastre produtos para visualizar o gráfico.</p>';
-    catContainer.innerHTML = '<p style="color:#6b7280; font-size:13px;">Sem categorias registradas.</p>';
+    compContainer.innerHTML = '<p style="color:#4b5563; font-size:0.8125rem;">Cadastre produtos para visualizar o gráfico.</p>';
+    catContainer.innerHTML = '<p style="color:#4b5563; font-size:0.8125rem;">Sem categorias registradas.</p>';
     return;
   }
 
@@ -466,30 +854,27 @@ function renderInsights(userProducts) {
 
   cardsHTML += `
     <div class="insight-card info">
-      <span class="insight-badge">Dica de Gestão</span>
-      <h4>Mantenha o mercado atualizado</h4>
-      <p>Revise a coluna "Média Mercado" a cada 15 dias ou exporte seu catálogo em CSV para acompanhar a evolução sazonal.</p>
+      <span class="insight-badge">Banco SQLite Local</span>
+      <h4>Segurança no seu disco rígido</h4>
+      <p>Seus registros são salvos diretamente no arquivo <strong>.sqlite</strong> do seu computador sempre que você altera um item.</p>
     </div>
   `;
 
   grid.innerHTML = cardsHTML;
 }
 
-function deleteProduct(id) {
-  const user = getLoggedUser();
+async function deleteProduct(id) {
+  const user = DB.getLoggedUser();
   if (!user) return;
-
-  db = getDB();
-  db.products = db.products.filter(item => !(item.id === id && item.userId === user.id));
-  saveDB(db);
+  await DB.deleteProduct(id, user.id);
   renderDashboard();
-  showToast('Produto removido da sua conta.');
+  showToast('Produto removido e arquivo SQLite atualizado no disco.');
 }
 
 function exportToCSV() {
-  const user = getLoggedUser();
+  const user = DB.getLoggedUser();
   if (!user) return;
-  const list = getUserProducts(user.id);
+  const list = DB.getUserProducts(user.id);
   if (list.length === 0) {
     showToast('Não há produtos para exportar.');
     return;
@@ -497,7 +882,7 @@ function exportToCSV() {
 
   let csv = 'Produto;Categoria;Seu Preco;Media Mercado\n';
   list.forEach(p => {
-    csv += `${p.name};${p.category};${p.price.toFixed(2)};${p.market.toFixed(2)}\n`;
+    csv += `${p.name};${p.category};${Number(p.price).toFixed(2)};${Number(p.market).toFixed(2)}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -508,21 +893,11 @@ function exportToCSV() {
   showToast('Planilha CSV baixada com sucesso!');
 }
 
-searchInput.addEventListener('input', renderDashboard);
-categoryFilter.addEventListener('change', renderDashboard);
-statusFilter.addEventListener('change', renderDashboard);
-
-// Modal Adicionar / Editar Produto
-const openModalBtn = document.getElementById('openModalBtn');
-const closeModalBtn = document.getElementById('closeModalBtn');
-const productModal = document.getElementById('productModal');
-const productForm = document.getElementById('productForm');
-
-openModalBtn.addEventListener('click', () => {
-  const user = getLoggedUser();
+function openNewProductModal() {
+  const user = DB.getLoggedUser();
   if (!user) return;
 
-  const userProducts = getUserProducts(user.id);
+  const userProducts = DB.getUserProducts(user.id);
   if (user.plan === 'Starter' && userProducts.length >= 10) {
     showToast('Limite de 10 produtos do plano Starter atingido! Faça upgrade.');
     navigateTo('planos');
@@ -531,14 +906,15 @@ openModalBtn.addEventListener('click', () => {
 
   document.getElementById('productModalTitle').textContent = 'Adicionar novo produto';
   document.getElementById('editProdId').value = '';
-  productForm.reset();
-  productModal.classList.add('open');
-});
+  document.getElementById('productForm').reset();
+  document.getElementById('productModal').classList.add('open');
+  document.getElementById('prodName').focus();
+}
 
 function openEditModal(id) {
-  const user = getLoggedUser();
+  const user = DB.getLoggedUser();
   if (!user) return;
-  const prod = getUserProducts(user.id).find(p => p.id === id);
+  const prod = DB.getUserProducts(user.id).find(p => p.id === id);
   if (!prod) return;
 
   document.getElementById('productModalTitle').textContent = 'Editar produto';
@@ -547,78 +923,41 @@ function openEditModal(id) {
   document.getElementById('prodCategory').value = prod.category;
   document.getElementById('prodPrice').value = prod.price;
   document.getElementById('prodMarket').value = prod.market;
-  productModal.classList.add('open');
+  document.getElementById('productModal').classList.add('open');
+  document.getElementById('prodName').focus();
 }
 
-closeModalBtn.addEventListener('click', () => productModal.classList.remove('open'));
-
-productForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const user = getLoggedUser();
-  if (!user) return;
-
-  db = getDB();
-  const editId = document.getElementById('editProdId').value;
-  const name = document.getElementById('prodName').value;
-  const category = document.getElementById('prodCategory').value;
-  const price = parseFloat(document.getElementById('prodPrice').value);
-  const market = parseFloat(document.getElementById('prodMarket').value);
-
-  if (editId) {
-    const idx = db.products.findIndex(p => p.id === Number(editId) && p.userId === user.id);
-    if (idx !== -1) {
-      db.products[idx] = { ...db.products[idx], name, category, price, market };
-      showToast('Produto atualizado com sucesso!');
-    }
-  } else {
-    db.products.unshift({
-      id: Date.now(),
-      userId: user.id,
-      name,
-      category,
-      price,
-      market
-    });
-    showToast('Produto salvo na sua conta!');
-  }
-
-  saveDB(db);
-  productForm.reset();
-  productModal.classList.remove('open');
-  renderDashboard();
-});
+function closeProductModal() {
+  const modal = document.getElementById('productModal');
+  if (modal) modal.classList.remove('open');
+}
 
 // =========================================
-// 5. PLANOS E CHECKOUT DE PAGAMENTO
+// 6. PLANOS E CHECKOUT DE PAGAMENTO
 // =========================================
-const billingSwitch = document.getElementById('billingSwitch');
-const checkoutModal = document.getElementById('checkoutModal');
-const closeCheckoutBtn = document.getElementById('closeCheckoutBtn');
-const btnMethodCard = document.getElementById('btnMethodCard');
-const btnMethodPix = document.getElementById('btnMethodPix');
-const cardFields = document.getElementById('cardFields');
-const pixFields = document.getElementById('pixFields');
-const paymentForm = document.getElementById('paymentForm');
-
 let isYearly = false;
 let selectedPlanData = { name: 'Pro', price: 79 };
 
-billingSwitch.addEventListener('click', () => {
+function toggleBillingPeriod() {
+  const billingSwitch = document.getElementById('billingSwitch');
   isYearly = !isYearly;
-  billingSwitch.classList.toggle('yearly', isYearly);
+  if (billingSwitch) {
+    billingSwitch.classList.toggle('yearly', isYearly);
+    billingSwitch.setAttribute('aria-checked', String(isYearly));
+  }
 
   document.querySelectorAll('.plan-price').forEach(el => {
     const value = isYearly ? el.dataset.yearly : el.dataset.monthly;
     el.innerHTML = `R$ ${value}<span>/mês</span>`;
   });
-});
+}
 
 function highlightCurrentPlan() {
-  const user = getLoggedUser();
+  const user = DB.getLoggedUser();
   document.querySelectorAll('.plan-btn').forEach(btn => {
     if (user && user.plan === btn.dataset.plan) {
       btn.textContent = 'Plano atual';
-      btn.style.opacity = '0.7';
+      btn.style.opacity = '0.75';
     } else {
       if (btn.dataset.plan === 'Starter') btn.textContent = 'Ativar grátis';
       if (btn.dataset.plan === 'Pro') btn.textContent = 'Assinar plano Pro';
@@ -628,18 +967,8 @@ function highlightCurrentPlan() {
   });
 }
 
-function updateUserPlan(newPlan, billingPeriod) {
-  db = getDB();
-  const userIndex = db.users.findIndex(u => u.id === db.currentUserId);
-  if (userIndex === -1) return;
-
-  db.users[userIndex].plan = newPlan;
-  db.users[userIndex].billing = billingPeriod;
-  saveDB(db);
-}
-
-function openCheckout(planName, monthlyBasePrice) {
-  const user = getLoggedUser();
+async function openCheckout(planName, monthlyBasePrice) {
+  const user = DB.getLoggedUser();
 
   if (!user) {
     showToast('Crie uma conta ou faça login antes de escolher um plano.');
@@ -648,8 +977,8 @@ function openCheckout(planName, monthlyBasePrice) {
   }
 
   if (monthlyBasePrice === 0) {
-    updateUserPlan('Starter', 'Mensal');
-    showToast('Plano Starter ativado! Dashboard liberado.');
+    await DB.updateUserPlan(user.id, 'Starter', 'Mensal');
+    showToast('Plano Starter ativado e salvo no SQLite!');
     navigateTo('dashboard');
     return;
   }
@@ -659,46 +988,191 @@ function openCheckout(planName, monthlyBasePrice) {
 
   document.getElementById('checkoutTitle').textContent = `Plano ${planName} (${isYearly ? 'Anual' : 'Mensal'})`;
   document.getElementById('checkoutPrice').textContent = `R$ ${finalPrice},00/mês`;
-  checkoutModal.classList.add('open');
+  document.getElementById('checkoutModal').classList.add('open');
 }
 
-closeCheckoutBtn.addEventListener('click', () => checkoutModal.classList.remove('open'));
+function closeCheckoutModal() {
+  const modal = document.getElementById('checkoutModal');
+  if (modal) modal.classList.remove('open');
+}
 
-btnMethodCard.addEventListener('click', () => {
-  btnMethodCard.classList.add('active');
-  btnMethodPix.classList.remove('active');
-  cardFields.style.display = 'block';
-  pixFields.style.display = 'none';
+function selectPayMethod(method) {
+  const btnCard = document.getElementById('btnMethodCard');
+  const btnPix = document.getElementById('btnMethodPix');
+  const cardFields = document.getElementById('cardFields');
+  const pixFields = document.getElementById('pixFields');
+
+  if (method === 'card') {
+    btnCard.classList.add('active');
+    btnPix.classList.remove('active');
+    cardFields.style.display = 'block';
+    pixFields.style.display = 'none';
+  } else {
+    btnPix.classList.add('active');
+    btnCard.classList.remove('active');
+    pixFields.style.display = 'block';
+    cardFields.style.display = 'none';
+  }
+}
+
+// =========================================
+// 7. VINCULAÇÃO DE EVENTOS APÓS CARREGAR O DOM
+// =========================================
+document.addEventListener('DOMContentLoaded', () => {
+  loadA11yPrefs();
+  updateNavbarAuth();
+  initDatabaseEngine();
+
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const mobileDrawer = document.getElementById('mobileDrawer');
+  if (mobileMenuBtn && mobileDrawer) {
+    mobileMenuBtn.addEventListener('click', () => {
+      const isOpen = mobileDrawer.classList.toggle('open');
+      mobileMenuBtn.setAttribute('aria-expanded', String(isOpen));
+    });
+  }
+
+  const registerForm = document.getElementById('registerForm');
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!sqliteDB) {
+        showAuthAlert('Motor SQLite ainda inicializando. Tente em 1 segundo.', 'error');
+        return;
+      }
+      const name = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim().toLowerCase();
+      const password = document.getElementById('regPassword').value;
+
+      if (DB.getUserByEmail(email)) {
+        showAuthAlert('Este e-mail já está cadastrado. Faça login.', 'error');
+        return;
+      }
+
+      await DB.createUser(name, email, password);
+      registerForm.reset();
+      showToast(`Bem-vindo, ${name}! Escolha um plano para liberar o Dashboard.`);
+      navigateTo('planos');
+    });
+  }
+
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!sqliteDB) {
+        showAuthAlert('Motor SQLite ainda inicializando. Tente em 1 segundo.', 'error');
+        return;
+      }
+      const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+      const password = document.getElementById('loginPassword').value;
+
+      const foundUser = DB.getUserByEmail(email);
+      if (!foundUser || foundUser.password !== password) {
+        showAuthAlert('E-mail ou senha incorretos.', 'error');
+        return;
+      }
+
+      DB.setCurrentUserId(foundUser.id);
+      loginForm.reset();
+
+      if (foundUser.plan) {
+        showToast(`Login realizado! Bem-vindo de volta, ${foundUser.name}.`);
+        navigateTo('dashboard');
+      } else {
+        showToast('Login realizado! Escolha um plano para acessar o Dashboard.');
+        navigateTo('planos');
+      }
+    });
+  }
+
+  const searchInput = document.getElementById('searchInput');
+  const categoryFilter = document.getElementById('categoryFilter');
+  const statusFilter = document.getElementById('statusFilter');
+  if (searchInput) searchInput.addEventListener('input', renderDashboard);
+  if (categoryFilter) categoryFilter.addEventListener('change', renderDashboard);
+  if (statusFilter) statusFilter.addEventListener('change', renderDashboard);
+
+  const productForm = document.getElementById('productForm');
+  if (productForm) {
+    productForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = DB.getLoggedUser();
+      if (!user) return;
+
+      const editId = document.getElementById('editProdId').value;
+      const name = document.getElementById('prodName').value;
+      const category = document.getElementById('prodCategory').value;
+      const price = parseFloat(document.getElementById('prodPrice').value);
+      const market = parseFloat(document.getElementById('prodMarket').value);
+
+      if (editId) {
+        await DB.updateProduct(Number(editId), user.id, name, category, price, market);
+        showToast('Produto atualizado e gravado no arquivo SQLite!');
+      } else {
+        await DB.addProduct(user.id, name, category, price, market);
+        showToast('Produto salvo no arquivo SQLite do computador!');
+      }
+
+      productForm.reset();
+      closeProductModal();
+      renderDashboard();
+    });
+  }
+
+  const cardNumber = document.getElementById('cardNumber');
+  if (cardNumber) {
+    cardNumber.addEventListener('input', (e) => {
+      let val = e.target.value.replace(/\D/g, '');
+      val = val.replace(/(\d{4})(?=\d)/g, '$1 ');
+      e.target.value = val;
+    });
+  }
+
+  const paymentForm = document.getElementById('paymentForm');
+  if (paymentForm) {
+    paymentForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = DB.getLoggedUser();
+      if (!user) return;
+
+      const confirmBtn = document.getElementById('confirmPayBtn');
+      confirmBtn.textContent = 'Processando pagamento...';
+      confirmBtn.disabled = true;
+
+      setTimeout(async () => {
+        await DB.updateUserPlan(user.id, selectedPlanData.name, isYearly ? 'Anual' : 'Mensal');
+        confirmBtn.textContent = 'Confirmar pagamento';
+        confirmBtn.disabled = false;
+        closeCheckoutModal();
+
+        showToast(`Pagamento aprovado! Plano ${selectedPlanData.name} salvo no SQLite.`);
+        navigateTo('dashboard');
+      }, 800);
+    });
+  }
 });
 
-btnMethodPix.addEventListener('click', () => {
-  btnMethodPix.classList.add('active');
-  btnMethodCard.classList.remove('active');
-  pixFields.style.display = 'block';
-  cardFields.style.display = 'none';
-});
-
-document.getElementById('cardNumber').addEventListener('input', (e) => {
-  let val = e.target.value.replace(/\D/g, '');
-  val = val.replace(/(\d{4})(?=\d)/g, '$1 ');
-  e.target.value = val;
-});
-
-paymentForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const confirmBtn = document.getElementById('confirmPayBtn');
-  confirmBtn.textContent = 'Processando pagamento...';
-  confirmBtn.disabled = true;
-
-  setTimeout(() => {
-    updateUserPlan(selectedPlanData.name, isYearly ? 'Anual' : 'Mensal');
-    confirmBtn.textContent = 'Confirmar pagamento';
-    confirmBtn.disabled = false;
-    checkoutModal.classList.remove('open');
-
-    showToast(`Pagamento aprovado! Plano ${selectedPlanData.name} ativo.`);
-    navigateTo('dashboard');
-  }, 1200);
-});
-
-updateNavbarAuth();
+// Expõe funções no escopo global
+window.navigateTo = navigateTo;
+window.closeMobileMenu = closeMobileMenu;
+window.logoutUser = logoutUser;
+window.switchAuthTab = switchAuthTab;
+window.toggleBillingPeriod = toggleBillingPeriod;
+window.openCheckout = openCheckout;
+window.closeCheckoutModal = closeCheckoutModal;
+window.selectPayMethod = selectPayMethod;
+window.openNewProductModal = openNewProductModal;
+window.openEditModal = openEditModal;
+window.closeProductModal = closeProductModal;
+window.deleteProduct = deleteProduct;
+window.exportToCSV = exportToCSV;
+window.toggleA11yPanel = toggleA11yPanel;
+window.closeA11yPanel = closeA11yPanel;
+window.changeFontSize = changeFontSize;
+window.resetFontSize = resetFontSize;
+window.toggleA11yMode = toggleA11yMode;
+window.toggleScreenReader = toggleScreenReader;
+window.resetAllA11y = resetAllA11y;
+window.connectOrSaveSQLiteFile = connectOrSaveSQLiteFile;
+window.openSQLiteFileFromDisk = openSQLiteFileFromDisk;
