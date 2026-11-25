@@ -1,4 +1,67 @@
 // =========================================
+// GERENCIAMENTO DE CONTA E ARMAZENAMENTO POR USUÁRIO
+// =========================================
+const StoragePorConta = {
+  getUsuarioAtivo() {
+    try {
+      return JSON.parse(localStorage.getItem('precofacil_user')) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  getEmailChave() {
+    const user = this.getUsuarioAtivo();
+    return (user && user.email ? user.email : 'guest@precofacil.com').toLowerCase();
+  },
+
+  getContasRegistradas() {
+    try {
+      return JSON.parse(localStorage.getItem('precofacil_accounts')) || {};
+    } catch {
+      return {};
+    }
+  },
+
+  salvarContaRegistrada(user) {
+    const contas = this.getContasRegistradas();
+    const email = user.email.toLowerCase();
+    contas[email] = {
+      name: user.name,
+      email,
+      password: user.password || (contas[email] && contas[email].password) || ''
+    };
+    localStorage.setItem('precofacil_accounts', JSON.stringify(contas));
+    localStorage.setItem('precofacil_user', JSON.stringify({ name: contas[email].name, email }));
+  },
+
+  getProdutosLocal() {
+    const chave = `precofacil_produtos_${this.getEmailChave()}`;
+    try {
+      const salvo = localStorage.getItem(chave);
+      return salvo ? JSON.parse(salvo) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  salvarProdutosLocal(lista) {
+    const chave = `precofacil_produtos_${this.getEmailChave()}`;
+    localStorage.setItem(chave, JSON.stringify(lista));
+  },
+
+  getPlanoLocal() {
+    const chave = `precofacil_plano_${this.getEmailChave()}`;
+    return localStorage.getItem(chave) || 'Starter';
+  },
+
+  salvarPlanoLocal(plano) {
+    const chave = `precofacil_plano_${this.getEmailChave()}`;
+    localStorage.setItem(chave, plano);
+  }
+};
+
+// =========================================
 // MÓDULO DE CONEXÃO E AUTO-SAVE SQL (VERCEL / LOCAL)
 // =========================================
 const AutoSaveSQL = {
@@ -7,7 +70,8 @@ const AutoSaveSQL = {
 
   salvarAlteracao(id, dados, callbackSucesso) {
     clearTimeout(this.timers[id]);
-    this.mostrarStatus('Salvando na Vercel...');
+    StoragePorConta.salvarProdutosLocal(produtosLista);
+    this.mostrarStatus('Salvando...');
 
     this.timers[id] = setTimeout(async () => {
       try {
@@ -21,34 +85,38 @@ const AutoSaveSQL = {
           this.mostrarStatus('Salvo automaticamente ✓');
           if (typeof callbackSucesso === 'function') callbackSucesso();
         } else {
-          this.mostrarStatus('Salvo localmente ✓');
+          this.mostrarStatus('Salvo na conta ✓');
         }
       } catch (erro) {
-        console.error('Falha na conexão automática com o SQL:', erro);
-        this.mostrarStatus('Salvo localmente ✓');
+        this.mostrarStatus('Salvo na conta ✓');
       }
     }, 500);
   },
 
   async criarAutomatico(dados) {
-    this.mostrarStatus('Salvando produto na Vercel...');
+    const payload = {
+      ...dados,
+      user_email: StoragePorConta.getEmailChave()
+    };
+
+    this.mostrarStatus('Salvando produto...');
     try {
       const resposta = await fetch('/api/produtos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dados)
+        body: JSON.stringify(payload)
       });
       if (resposta.ok) {
         const novoItem = await resposta.json();
-        this.mostrarStatus('Produto salvo na Vercel ✓');
+        this.mostrarStatus('Produto salvo na conta ✓');
         return novoItem;
       }
     } catch (erro) {
-      console.error('Erro ao criar no servidor:', erro);
+      console.error('Fallback local ao criar produto:', erro);
     }
 
-    const itemLocal = { id: Date.now(), ...dados };
-    this.mostrarStatus('Produto adicionado ✓');
+    const itemLocal = { id: Date.now(), ...payload };
+    this.mostrarStatus('Produto salvo na conta ✓');
     return itemLocal;
   },
 
@@ -77,13 +145,16 @@ const AutoSaveSQL = {
 // =========================================
 // ITENS PADRÃO & ESTADO GLOBAL
 // =========================================
-const ITENS_PADRAO = [
-  { id: 1, name: 'Jaqueta Corta-Vento Minimal', category: 'Vestuário', price: 249.90, market: 279.90 },
-  { id: 2, name: 'Tênis Urbano Couro Branco', category: 'Calçados', price: 329.00, market: 310.00 },
-  { id: 3, name: 'Camiseta Algodão Pima Preta', category: 'Vestuário', price: 89.90, market: 105.00 },
-  { id: 4, name: 'Mochila Executiva Impermeável', category: 'Acessórios', price: 199.00, market: 229.00 },
-  { id: 5, name: 'Fone Bluetooth Noise Cancelling', category: 'Eletrônicos', price: 459.90, market: 519.00 }
-];
+function criarItensPadraoParaConta() {
+  const email = StoragePorConta.getEmailChave();
+  return [
+    { id: 101, user_email: email, name: 'Jaqueta Corta-Vento Minimal', category: 'Vestuário', price: 249.90, market: 279.90 },
+    { id: 102, user_email: email, name: 'Tênis Urbano Couro Branco', category: 'Calçados', price: 329.00, market: 310.00 },
+    { id: 103, user_email: email, name: 'Camiseta Algodão Pima Preta', category: 'Vestuário', price: 89.90, market: 105.00 },
+    { id: 104, user_email: email, name: 'Mochila Executiva Impermeável', category: 'Acessórios', price: 199.00, market: 229.00 },
+    { id: 105, user_email: email, name: 'Fone Bluetooth Noise Cancelling', category: 'Eletrônicos', price: 459.90, market: 519.00 }
+  ];
+}
 
 let produtosLista = [];
 let cobrancaAnual = false;
@@ -97,7 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
     link.setAttribute('href', 'planos.html');
   });
 
-  // Remove apenas botões antigos de baixar/exportar arquivo .sql
   document.querySelectorAll('button, a').forEach((el) => {
     const txt = (el.textContent || '').toLowerCase();
     if (txt.includes('salvar sql') || txt.includes('baixar sql') || txt.includes('exportar sql')) {
@@ -127,26 +197,18 @@ function detectarPaginaPelaURL() {
   return 'home';
 }
 
-function getUsuarioLogado() {
-  try {
-    return JSON.parse(localStorage.getItem('precofacil_user')) || null;
-  } catch {
-    return null;
-  }
-}
-
 function renderizarNavAuth() {
   const navAuthArea = document.getElementById('navAuthArea');
   if (!navAuthArea) return;
 
-  const user = getUsuarioLogado();
-  const planoAtual = localStorage.getItem('precofacil_plano') || 'Starter';
+  const user = StoragePorConta.getUsuarioAtivo();
+  const planoAtual = StoragePorConta.getPlanoLocal();
 
   if (user) {
     navAuthArea.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #f1f5f9; color: #0f172a;">
-          ${user.name || user.email} · ${planoAtual}
+          ${user.name} · ${planoAtual}
         </span>
         <button type="button" onclick="fazerLogout()" style="background: transparent; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;">
           Sair
@@ -157,7 +219,7 @@ function renderizarNavAuth() {
     navAuthArea.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #f1f5f9; color: #0f172a;">
-          Plano: ${planoAtual}
+          Visitante · ${planoAtual}
         </span>
         <a href="login.html" class="cta-button" style="padding: 8px 16px; font-size: 13px; text-decoration: none;">
           Entrar
@@ -168,8 +230,9 @@ function renderizarNavAuth() {
 }
 
 window.fazerLogout = function() {
+  // Encerra apenas a sessão atual, mantendo as contas e os dados salvos por e-mail
   localStorage.removeItem('precofacil_user');
-  window.location.href = 'index.html';
+  window.location.href = 'login.html';
 };
 
 function formatarMoeda(valor) {
@@ -180,7 +243,7 @@ function formatarMoeda(valor) {
 }
 
 // =========================================
-// HOME & LOGIN / CRIAR CONTA
+// HOME & LOGIN / REGISTRO DE CONTA PERSISTENTE
 // =========================================
 function iniciarHome() {
   document.querySelectorAll('a, button').forEach((el) => {
@@ -198,7 +261,10 @@ function iniciarLogin() {
   const loginSection = document.getElementById('loginSection') || document.getElementById('loginBox') || loginForm;
   const registerSection = document.getElementById('registerSection') || document.getElementById('signupSection') || document.getElementById('registerBox') || registerForm;
 
+  let emModoCadastro = false;
+
   window.showRegister = window.mostrarCriarConta = function() {
+    emModoCadastro = true;
     if (loginSection && registerSection && loginSection !== registerSection) {
       loginSection.style.display = 'none';
       registerSection.style.display = 'block';
@@ -209,6 +275,7 @@ function iniciarLogin() {
   };
 
   window.showLogin = window.mostrarLogin = function() {
+    emModoCadastro = false;
     if (loginSection && registerSection && loginSection !== registerSection) {
       registerSection.style.display = 'none';
       loginSection.style.display = 'block';
@@ -240,24 +307,69 @@ function iniciarLogin() {
   }
 
   forms.forEach((form) => {
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const emailInput = form.querySelector('input[type="email"], input[name="email"], #email, #loginEmail, #registerEmail');
       const nameInput = form.querySelector('input[name="name"], #name, #registerName, #signupName');
+      const passInput = form.querySelector('input[type="password"], input[name="password"], #password, #loginPassword, #registerPassword');
 
       const email = emailInput && emailInput.value.trim()
-        ? emailInput.value.trim()
-        : 'usuario@precofacil.com';
-      const name = nameInput && nameInput.value.trim()
-        ? nameInput.value.trim()
-        : email.split('@')[0];
+        ? emailInput.value.trim().toLowerCase()
+        : '';
+      if (!email) return;
 
-      localStorage.setItem('precofacil_user', JSON.stringify({ name, email }));
-      AutoSaveSQL.mostrarStatus('Conta conectada com sucesso ✓');
+      const password = passInput ? passInput.value : '';
+      const contas = StoragePorConta.getContasRegistradas();
+      const isCadastro = emModoCadastro || form === registerForm || (nameInput && nameInput.offsetParent !== null);
 
-      setTimeout(() => {
-        window.location.href = 'dashboard.html';
-      }, 400);
+      if (isCadastro) {
+        const name = nameInput && nameInput.value.trim()
+          ? nameInput.value.trim()
+          : email.split('@')[0];
+
+        StoragePorConta.salvarContaRegistrada({ name, email, password });
+
+        try {
+          await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+          });
+        } catch (err) {
+          console.error('Sincronização de registro:', err);
+        }
+
+        AutoSaveSQL.mostrarStatus('Conta registrada com sucesso ✓');
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 400);
+      } else {
+        const contaExistente = contas[email];
+        if (contaExistente && contaExistente.password && password && contaExistente.password !== password) {
+          AutoSaveSQL.mostrarStatus('Senha incorreta para esta conta', true);
+          return;
+        }
+
+        const name = contaExistente ? contaExistente.name : email.split('@')[0];
+        StoragePorConta.salvarContaRegistrada({ name, email, password: contaExistente ? contaExistente.password : password });
+
+        try {
+          const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.name) {
+              StoragePorConta.salvarContaRegistrada({ name: data.name, email, password });
+            }
+          }
+        } catch (err) {
+          console.error('Sincronização de login:', err);
+        }
+
+        AutoSaveSQL.mostrarStatus(`Bem-vindo, ${name} ✓`);
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 400);
+      }
     });
   });
 }
@@ -301,7 +413,7 @@ function atualizarEstadoAbasAuth(ativo) {
 }
 
 // =========================================
-// LÓGICA DO DASHBOARD (ITENS PADRÃO + CRIAÇÃO + AUTO-SAVE)
+// LÓGICA DO DASHBOARD (PERSISTENTE NO F5 + ISOLADO POR CONTA)
 // =========================================
 async function iniciarDashboard() {
   const mainContent = document.getElementById('dashboardMainContent');
@@ -309,24 +421,44 @@ async function iniciarDashboard() {
     mainContent.style.display = 'block';
   }
 
+  const user = StoragePorConta.getUsuarioAtivo();
+  const emailConta = StoragePorConta.getEmailChave();
+  const planoAtual = StoragePorConta.getPlanoLocal();
+
   const banner = document.getElementById('userStatusBanner');
   if (banner) {
-    const planoAtual = localStorage.getItem('precofacil_plano') || 'Starter';
-    banner.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; margin-bottom: 20px; font-size: 14px; color: #166534;">
-        <span><strong>Conectado ao servidor:</strong> Salvamento automático ativo (Plano <strong>${planoAtual}</strong>).</span>
-        <a href="planos.html" style="color: #15803d; font-weight: 600; text-decoration: underline;">Gerenciar plano</a>
-      </div>
-    `;
+    banner.innerHTML = user
+      ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; margin-bottom: 20px; font-size: 14px; color: #166534;">
+          <span>Conta conectada: <strong>${user.name}</strong> (${user.email}) · Plano <strong>${planoAtual}</strong></span>
+          <a href="planos.html" style="color: #15803d; font-weight: 600; text-decoration: underline;">Gerenciar plano</a>
+        </div>
+      `
+      : `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; margin-bottom: 20px; font-size: 14px; color: #1e40af;">
+          <span>Modo Visitante (${emailConta}). <a href="login.html" style="font-weight: 700; text-decoration: underline;">Entre ou crie uma conta</a> para separar seus dados por login.</span>
+          <a href="planos.html" style="color: #1d4ed8; font-weight: 600; text-decoration: underline;">Ver planos</a>
+        </div>
+      `;
   }
 
-  // Exibe os itens padrão imediatamente enquanto sincroniza com a Vercel
-  produtosLista = [...ITENS_PADRAO];
+  // 1. Carrega imediatamente os dados salvos da conta atual (garante zero perda no F5)
+  const salvosNaConta = StoragePorConta.getProdutosLocal();
+  if (Array.isArray(salvosNaConta)) {
+    produtosLista = salvosNaConta;
+  } else {
+    produtosLista = criarItensPadraoParaConta();
+    StoragePorConta.salvarProdutosLocal(produtosLista);
+  }
+
   renderizarTabela();
   atualizarKPIs();
 
-  await carregarPlanoAtivo();
-  await carregarProdutos();
+  const kpiPlan = document.getElementById('kpiActivePlan');
+  if (kpiPlan) kpiPlan.textContent = planoAtual;
+
+  // 2. Sincroniza em segundo plano com o SQL da Vercel para a conta atual
+  await sincronizarComServidor(emailConta);
 
   const searchInput = document.getElementById('searchInput');
   const categoryFilter = document.getElementById('categoryFilter');
@@ -376,6 +508,7 @@ async function iniciarDashboard() {
 
       const criado = await AutoSaveSQL.criarAutomatico(dados);
       produtosLista.unshift(criado);
+      StoragePorConta.salvarProdutosLocal(produtosLista);
       renderizarTabela();
       atualizarKPIs();
 
@@ -388,38 +521,41 @@ async function iniciarDashboard() {
   }
 }
 
-async function carregarPlanoAtivo() {
+async function sincronizarComServidor(email) {
   try {
-    const res = await fetch('/api/planos');
-    if (res.ok) {
-      const dados = await res.json();
-      if (dados && dados.plano) {
-        localStorage.setItem('precofacil_plano', dados.plano);
+    const resPlano = await fetch(`/api/planos?email=${encodeURIComponent(email)}`);
+    if (resPlano.ok) {
+      const dadosPlano = await resPlano.json();
+      const planoLocal = StoragePorConta.getPlanoLocal();
+      if (dadosPlano && dadosPlano.plano && dadosPlano.plano !== 'Starter') {
+        StoragePorConta.salvarPlanoLocal(dadosPlano.plano);
         const kpiPlan = document.getElementById('kpiActivePlan');
-        if (kpiPlan) kpiPlan.textContent = dados.plano;
+        if (kpiPlan) kpiPlan.textContent = dadosPlano.plano;
         renderizarNavAuth();
+      } else if (planoLocal !== 'Starter') {
+        // Reenvia o plano salvo da conta caso o /tmp da Vercel tenha reiniciado
+        fetch('/api/planos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_email: email, plano: planoLocal, periodo: 'Mensal' })
+        });
       }
     }
-  } catch (e) {
-    const salvo = localStorage.getItem('precofacil_plano') || 'Starter';
-    const kpiPlan = document.getElementById('kpiActivePlan');
-    if (kpiPlan) kpiPlan.textContent = salvo;
-  }
-}
 
-async function carregarProdutos() {
-  try {
-    const res = await fetch('/api/produtos');
-    if (res.ok) {
-      const dados = await res.json();
-      if (Array.isArray(dados) && dados.length > 0) {
-        produtosLista = dados;
+    const resProd = await fetch(`/api/produtos?email=${encodeURIComponent(email)}`);
+    if (resProd.ok) {
+      const doServidor = await resProd.json();
+      // Se o servidor tiver dados customizados diferentes apenas do seed inicial, ou se local estiver vazio
+      const localSalvo = StoragePorConta.getProdutosLocal();
+      if ((!localSalvo || localSalvo.length === 0) && Array.isArray(doServidor) && doServidor.length > 0) {
+        produtosLista = doServidor;
+        StoragePorConta.salvarProdutosLocal(produtosLista);
         renderizarTabela();
         atualizarKPIs();
       }
     }
   } catch (erro) {
-    console.error('Usando catálogo padrão local:', erro);
+    console.error('Modo offline/local ativo:', erro);
   }
 }
 
@@ -440,7 +576,7 @@ function renderizarTabela() {
     tbody.innerHTML = `
       <tr>
         <td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">
-          Nenhum produto encontrado. Clique em "+ Novo produto" para adicionar.
+          Nenhum produto encontrado nesta conta. Clique em "+ Novo produto" para adicionar.
         </td>
       </tr>
     `;
@@ -505,7 +641,6 @@ function renderizarTabela() {
   }).join('');
 }
 
-// Auto-save automático ao editar qualquer campo diretamente na tabela
 document.addEventListener('input', (e) => {
   const el = e.target;
   const id = Number(el.dataset.id);
@@ -568,8 +703,9 @@ function atualizarKPIs() {
 }
 
 async function removerProduto(id) {
-  AutoSaveSQL.mostrarStatus('Removendo da Vercel...');
+  AutoSaveSQL.mostrarStatus('Removendo da conta...');
   produtosLista = produtosLista.filter((p) => p.id !== id);
+  StoragePorConta.salvarProdutosLocal(produtosLista);
   renderizarTabela();
   atualizarKPIs();
 
@@ -584,7 +720,7 @@ async function removerProduto(id) {
 }
 
 // =========================================
-// LÓGICA DE PLANOS & MENU DE PAGAMENTOS
+// LÓGICA DE PLANOS & MENU DE PAGAMENTOS POR CONTA
 // =========================================
 function iniciarPlanos() {
   const billingSwitch = document.getElementById('billingSwitch');
@@ -673,35 +809,30 @@ window.openCheckout = async function(nomePlano, precoMensal) {
 };
 
 async function salvarPlanoNoServidor(plano, periodo) {
-  AutoSaveSQL.mostrarStatus(`Salvando plano ${plano} na Vercel...`);
+  const email = StoragePorConta.getEmailChave();
+  StoragePorConta.salvarPlanoLocal(plano);
+  AutoSaveSQL.mostrarStatus(`Salvando plano ${plano} na sua conta...`);
 
   try {
     const resposta = await fetch('/api/planos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plano, periodo })
+      body: JSON.stringify({ user_email: email, plano, periodo })
     });
 
     const dados = await resposta.json();
-
-    if (resposta.ok) {
-      localStorage.setItem('precofacil_plano', plano);
-      AutoSaveSQL.mostrarStatus(dados.mensagem || `Plano ${plano} salvo na Vercel ✓`);
-
-      const checkoutModal = document.getElementById('checkoutModal');
-      if (checkoutModal) {
-        checkoutModal.classList.remove('active');
-        checkoutModal.style.display = '';
-      }
-
-      setTimeout(() => {
-        window.location.href = 'dashboard.html';
-      }, 700);
-    } else {
-      AutoSaveSQL.mostrarStatus(dados.erro || 'Erro ao salvar plano', true);
-    }
+    AutoSaveSQL.mostrarStatus(dados.mensagem || `Plano ${plano} salvo na conta ✓`);
   } catch (erro) {
-    console.error('Erro ao salvar plano na Vercel:', erro);
-    AutoSaveSQL.mostrarStatus('Erro de conexão com o servidor', true);
+    AutoSaveSQL.mostrarStatus(`Plano ${plano} salvo na conta ✓`);
   }
+
+  const checkoutModal = document.getElementById('checkoutModal');
+  if (checkoutModal) {
+    checkoutModal.classList.remove('active');
+    checkoutModal.style.display = '';
+  }
+
+  setTimeout(() => {
+    window.location.href = 'dashboard.html';
+  }, 600);
 }
