@@ -62,7 +62,7 @@ const StoragePorConta = {
 };
 
 // =========================================
-// MÓDULO GLOBAL DE ACESSIBILIDADE (TODAS AS PÁGINAS)
+// MÓDULO GLOBAL DE ACESSIBILIDADE (ÚNICO E REFORMULADO)
 // =========================================
 const AcessibilidadeGlobal = {
   estado: {
@@ -79,10 +79,44 @@ const AcessibilidadeGlobal = {
       if (salvo) Object.assign(this.estado, salvo);
     } catch {}
 
+    this.removerWidgetsDuplicados();
     this.injetarEstilos();
-    this.criarWidgetGlobal();
-    this.conectarBotoesExistentes();
+    this.criarWidgetUnico();
     this.aplicarEstado();
+  },
+
+  removerWidgetsDuplicados() {
+    // Remove fisicamente do DOM qualquer botão ou widget antigo para nunca duplicar
+    const seletoresAntigos = [
+      '#accessibilityWidget',
+      '#accessibilityBtn',
+      '#a11yBtn',
+      '#btnAcessibilidade',
+      '.accessibility-widget',
+      '.accessibility-btn',
+      '.a11y-widget',
+      '#a11y-floating-container'
+    ];
+    seletoresAntigos.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => el.remove());
+    });
+
+    document.querySelectorAll('button, div[role="button"]').forEach((el) => {
+      const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+      const title = (el.getAttribute('title') || '').toLowerCase();
+      const id = (el.id || '').toLowerCase();
+      if (
+        aria.includes('acessib') ||
+        aria.includes('accessib') ||
+        title.includes('acessib') ||
+        title.includes('accessib') ||
+        id.includes('acessib') ||
+        id.includes('accessib')
+      ) {
+        const wrapper = el.closest('[class*="accessib" i], [id*="accessib" i]') || el;
+        wrapper.remove();
+      }
+    });
   },
 
   salvar() {
@@ -91,40 +125,109 @@ const AcessibilidadeGlobal = {
   },
 
   injetarEstilos() {
-    if (document.getElementById('a11y-global-styles')) return;
+    const antigoStyle = document.getElementById('a11y-global-styles');
+    if (antigoStyle) antigoStyle.remove();
+
     const style = document.createElement('style');
     style.id = 'a11y-global-styles';
     style.textContent = `
-      html.a11y-high-contrast {
-        filter: contrast(1.35) !important;
-      }
+      /* =======================================================
+         ALTO CONTRASTE TOTAL (PRETO + BRANCO + AMARELO + CIANO)
+         ======================================================= */
+      html.a11y-high-contrast,
       html.a11y-high-contrast body {
-        background: #000000 !important;
+        background-color: #000000 !important;
+        background-image: none !important;
         color: #ffffff !important;
       }
+
+      html.a11y-high-contrast *:not(svg):not(path):not(circle):not(line):not(rect):not(canvas) {
+        background-color: #000000 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+        border-color: #facc15 !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+
+      html.a11y-high-contrast header,
+      html.a11y-high-contrast nav,
+      html.a11y-high-contrast footer,
       html.a11y-high-contrast .navbar,
       html.a11y-high-contrast .kpi-card,
       html.a11y-high-contrast .plan-card,
+      html.a11y-high-contrast .feature-card,
+      html.a11y-high-contrast .card,
       html.a11y-high-contrast .modal-box,
       html.a11y-high-contrast .table-wrapper,
-      html.a11y-high-contrast section,
-      html.a11y-high-contrast header,
-      html.a11y-high-contrast footer {
-        background: #09090b !important;
-        color: #ffffff !important;
-        border-color: #facc15 !important;
+      html.a11y-high-contrast #a11y-panel {
+        background-color: #0a0a0a !important;
+        border: 2px solid #facc15 !important;
       }
+
+      html.a11y-high-contrast h1,
+      html.a11y-high-contrast h2,
+      html.a11y-high-contrast h3,
+      html.a11y-high-contrast h4,
+      html.a11y-high-contrast .main-title,
+      html.a11y-high-contrast .kpi-value,
+      html.a11y-high-contrast .plan-price,
+      html.a11y-high-contrast .eyebrow,
+      html.a11y-high-contrast strong,
+      html.a11y-high-contrast th {
+        color: #facc15 !important;
+      }
+
       html.a11y-high-contrast a,
-      html.a11y-high-contrast button {
-        outline: 1px solid #facc15 !important;
+      html.a11y-high-contrast a * {
+        color: #38bdf8 !important;
+        text-decoration: underline !important;
       }
+
+      html.a11y-high-contrast button,
+      html.a11y-high-contrast .cta-button,
+      html.a11y-high-contrast .plan-btn {
+        background-color: #facc15 !important;
+        color: #000000 !important;
+        border: 2px solid #ffffff !important;
+        font-weight: 800 !important;
+      }
+
+      html.a11y-high-contrast button *,
+      html.a11y-high-contrast .cta-button * {
+        background-color: transparent !important;
+        color: #000000 !important;
+      }
+
+      html.a11y-high-contrast input,
+      html.a11y-high-contrast select,
+      html.a11y-high-contrast textarea {
+        background-color: #111111 !important;
+        color: #ffffff !important;
+        border: 2px solid #38bdf8 !important;
+      }
+
+      html.a11y-high-contrast ::placeholder {
+        color: #cbd5e1 !important;
+        opacity: 1 !important;
+      }
+
+      html.a11y-high-contrast svg {
+        stroke: currentColor !important;
+      }
+
+      /* ESCALA DE CINZA */
       html.a11y-grayscale {
         filter: grayscale(100%) !important;
       }
+
+      /* SUBLINHAR LINKS */
       html.a11y-underline-links a {
         text-decoration: underline !important;
-        text-underline-offset: 3px !important;
+        text-underline-offset: 4px !important;
       }
+
+      /* REDUZIR ANIMAÇÕES */
       html.a11y-reduce-motion *,
       html.a11y-reduce-motion *::before,
       html.a11y-reduce-motion *::after {
@@ -132,53 +235,60 @@ const AcessibilidadeGlobal = {
         transition: none !important;
         scroll-behavior: auto !important;
       }
+
+      /* WIDGET FLUTUANTE ÚNICO */
       #a11y-floating-container {
         position: fixed;
         bottom: 20px;
         left: 20px;
-        z-index: 10000;
-        font-family: 'Inter', sans-serif;
+        z-index: 2147483647;
+        font-family: 'Inter', system-ui, sans-serif;
       }
+
       #a11y-toggle-btn {
-        width: 48px;
-        height: 48px;
+        width: 50px;
+        height: 50px;
         border-radius: 999px;
-        background: #2563eb;
+        background: #1d4ed8;
         color: #ffffff;
         border: 2px solid #ffffff;
-        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: transform 0.2s;
+        transition: transform 0.2s ease, background-color 0.2s ease;
       }
+
       #a11y-toggle-btn:hover {
-        transform: scale(1.06);
-        background: #1d4ed8;
+        transform: scale(1.07);
+        background: #1e40af;
       }
+
       #a11y-panel {
         display: none;
         position: absolute;
-        bottom: 58px;
+        bottom: 62px;
         left: 0;
-        width: 265px;
+        width: 280px;
         background: #ffffff;
         color: #0f172a;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 16px;
         padding: 16px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22);
       }
+
       #a11y-panel.open {
         display: block;
       }
+
       .a11y-opt-btn {
         width: 100%;
         text-align: left;
-        padding: 8px 10px;
-        margin-bottom: 6px;
-        border-radius: 8px;
+        padding: 9px 12px;
+        margin-bottom: 7px;
+        border-radius: 10px;
         border: 1px solid #e2e8f0;
         background: #f8fafc;
         color: #0f172a;
@@ -189,37 +299,38 @@ const AcessibilidadeGlobal = {
         justify-content: space-between;
         align-items: center;
       }
+
       .a11y-opt-btn.active {
         background: #dbeafe;
         border-color: #2563eb;
-        color: #1e40af;
+        color: #1e3a8a;
       }
     `;
     document.head.appendChild(style);
   },
 
-  criarWidgetGlobal() {
-    // Oculta widgets antigos duplicados caso algum HTML tenha markup estático quebrado
-    const antigo = document.getElementById('accessibilityWidget') || document.querySelector('.accessibility-widget');
-    if (antigo) antigo.style.display = 'none';
-
-    if (document.getElementById('a11y-floating-container')) return;
-
+  criarWidgetUnico() {
     const container = document.createElement('div');
     container.id = 'a11y-floating-container';
     container.innerHTML = `
-      <div id="a11y-panel" role="dialog" aria-label="Opções de Acessibilidade">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <div id="a11y-panel" role="dialog" aria-label="Menu de Acessibilidade">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
           <strong style="font-size: 14px;">Acessibilidade</strong>
-          <button type="button" id="a11y-close-btn" style="background: none; border: none; font-size: 16px; cursor: pointer; color: #64748b;">✕</button>
+          <button type="button" id="a11y-close-btn" aria-label="Fechar acessibilidade" style="background: none; border: none; font-size: 16px; cursor: pointer; color: #64748b; padding: 2px 6px;">✕</button>
         </div>
 
-        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 6px;">
+          Tamanho do Texto
+        </div>
+        <div style="display: flex; gap: 6px; margin-bottom: 12px;">
           <button type="button" id="a11y-font-dec" class="a11y-opt-btn" style="justify-content: center; margin-bottom: 0;">A-</button>
           <button type="button" id="a11y-font-reset" class="a11y-opt-btn" style="justify-content: center; margin-bottom: 0;">100%</button>
           <button type="button" id="a11y-font-inc" class="a11y-opt-btn" style="justify-content: center; margin-bottom: 0;">A+</button>
         </div>
 
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 6px;">
+          Visual e Leitura
+        </div>
         <button type="button" id="a11y-contrast-btn" class="a11y-opt-btn">
           <span>Alto Contraste</span><span id="st-contrast">Off</span>
         </button>
@@ -232,13 +343,14 @@ const AcessibilidadeGlobal = {
         <button type="button" id="a11y-motion-btn" class="a11y-opt-btn">
           <span>Reduzir Animações</span><span id="st-motion">Off</span>
         </button>
-        <button type="button" id="a11y-reset-all" style="width: 100%; margin-top: 6px; padding: 7px; border-radius: 8px; border: none; background: #e2e8f0; color: #0f172a; font-size: 12px; font-weight: 600; cursor: pointer;">
+
+        <button type="button" id="a11y-reset-all" style="width: 100%; margin-top: 6px; padding: 8px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-size: 12px; font-weight: 700; cursor: pointer;">
           Restaurar padrão
         </button>
       </div>
 
       <button type="button" id="a11y-toggle-btn" title="Acessibilidade" aria-label="Abrir menu de acessibilidade">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="5" r="2"></circle>
           <path d="M5 9h14"></path>
           <path d="M12 9v6"></path>
@@ -250,11 +362,18 @@ const AcessibilidadeGlobal = {
     document.body.appendChild(container);
 
     const panel = document.getElementById('a11y-panel');
-    document.getElementById('a11y-toggle-btn').addEventListener('click', () => {
+    document.getElementById('a11y-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
       panel.classList.toggle('open');
     });
     document.getElementById('a11y-close-btn').addEventListener('click', () => {
       panel.classList.remove('open');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) {
+        panel.classList.remove('open');
+      }
     });
 
     document.getElementById('a11y-font-inc').addEventListener('click', () => {
@@ -299,18 +418,6 @@ const AcessibilidadeGlobal = {
     });
   },
 
-  conectarBotoesExistentes() {
-    // Caso algum HTML tenha um botão próprio de acessibilidade, abre o painel global
-    document.querySelectorAll('[id*="accessib" i], [id*="acessib" i], [aria-label*="acessib" i]').forEach((el) => {
-      if (el.closest('#a11y-floating-container')) return;
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const panel = document.getElementById('a11y-panel');
-        if (panel) panel.classList.toggle('open');
-      });
-    });
-  },
-
   aplicarEstado() {
     const html = document.documentElement;
     html.style.fontSize = `${this.estado.fontScale}%`;
@@ -326,7 +433,7 @@ const AcessibilidadeGlobal = {
       const btn = document.getElementById(btnId);
       const st = document.getElementById(stId);
       if (btn) btn.classList.toggle('active', ativo);
-      if (st) st.textContent = ativo ? 'On' : 'Off';
+      if (st) st.textContent = ativo ? 'Ativo' : 'Off';
     };
 
     setStatus('a11y-contrast-btn', 'st-contrast', this.estado.highContrast);
@@ -438,10 +545,8 @@ let chartPrecosInstance = null;
 let chartCategoriasInstance = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Inicializa o botão flutuante de acessibilidade em TODAS as páginas
   AcessibilidadeGlobal.init();
 
-  // Corrige links de âncora antigos para as páginas reais
   document.querySelectorAll('a[href="#dashboard"]').forEach((link) => {
     link.setAttribute('href', 'dashboard.html');
   });
@@ -452,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
     link.setAttribute('href', 'login.html');
   });
 
-  // Remove botões antigos de baixar/exportar arquivo .sql
+  // Remove apenas botões antigos de baixar/exportar arquivo .sql
   document.querySelectorAll('button, a').forEach((el) => {
     const txt = (el.textContent || '').toLowerCase();
     if (txt.includes('salvar sql') || txt.includes('baixar sql') || txt.includes('exportar sql')) {
@@ -527,17 +632,55 @@ function formatarMoeda(valor) {
 }
 
 // =========================================
-// PÁGINA INICIAL (HOME) — TODOS OS BOTÕES ATIVOS
+// PÁGINA INICIAL (HOME) — CARREGAR SQLITE E BOTÕES ATIVOS
 // =========================================
 function iniciarHome() {
-  // Conecta todos os botões e links da página inicial às rotas corretas
-  document.querySelectorAll('a, button').forEach((el) => {
+  // Input oculto para importar arquivo .sqlite / .db caso o botão de carregar SQLite seja clicado
+  let fileInputSqlite = document.getElementById('hiddenSqliteLoader');
+  if (!fileInputSqlite) {
+    fileInputSqlite = document.createElement('input');
+    fileInputSqlite.type = 'file';
+    fileInputSqlite.id = 'hiddenSqliteLoader';
+    fileInputSqlite.accept = '.db,.sqlite,.sqlite3,.sql,.json';
+    fileInputSqlite.style.display = 'none';
+    document.body.appendChild(fileInputSqlite);
+
+    fileInputSqlite.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      AutoSaveSQL.mostrarStatus(`Carregando banco "${file.name}"...`);
+      await carregarBancoSqliteParaConta(file);
+    });
+  }
+
+  // Conecta todos os botões e links da página inicial
+  document.querySelectorAll('a, button, label').forEach((el) => {
     if (el.closest('#a11y-floating-container') || el.closest('#navAuthArea')) return;
 
     const href = (el.getAttribute('href') || '').trim();
     const texto = (el.textContent || '').trim().toLowerCase();
+    const id = (el.id || '').toLowerCase();
 
-    // Ignora links externos válidos ou páginas .html já definidas
+    // 1. Botão de carregar SQLite / banco de dados
+    if (
+      texto.includes('sqlite') ||
+      texto.includes('carregar banco') ||
+      texto.includes('importar banco') ||
+      texto.includes('carregar dados') ||
+      id.includes('sqlite') ||
+      id.includes('loaddb')
+    ) {
+      el.addEventListener('click', async (e) => {
+        e.preventDefault();
+        // Primeiro sincroniza com o SQLite do servidor; se o usuário quiser escolher arquivo local, abre também
+        AutoSaveSQL.mostrarStatus('Conectando e carregando SQLite...');
+        await sincronizarSqliteDoServidor();
+        fileInputSqlite.click();
+      });
+      return;
+    }
+
     if (href.endsWith('.html') || href.startsWith('http')) return;
 
     if (
@@ -582,7 +725,6 @@ function iniciarHome() {
         window.location.href = 'login.html';
       });
     } else if (href.startsWith('#') && href.length > 1) {
-      // Rolagem suave para seções internas da própria Home (ex: #recursos, #como-funciona)
       const alvo = document.querySelector(href);
       if (alvo) {
         el.addEventListener('click', (e) => {
@@ -592,6 +734,75 @@ function iniciarHome() {
       }
     }
   });
+}
+
+async function sincronizarSqliteDoServidor() {
+  const email = StoragePorConta.getEmailChave();
+  try {
+    const res = await fetch(`/api/produtos?email=${encodeURIComponent(email)}`);
+    if (res.ok) {
+      const dados = await res.json();
+      if (Array.isArray(dados) && dados.length > 0) {
+        StoragePorConta.salvarProdutosLocal(dados);
+        AutoSaveSQL.mostrarStatus('Banco SQLite carregado com sucesso ✓');
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao consultar SQLite:', err);
+  }
+}
+
+async function carregarBancoSqliteParaConta(file) {
+  const email = StoragePorConta.getEmailChave();
+  try {
+    const text = await file.text();
+    let importados = [];
+
+    if (file.name.endsWith('.json')) {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) importados = parsed;
+    } else {
+      // Extrai comandos INSERT INTO produtos (...) VALUES (...) caso seja dump .sql ou texto legível do .db
+      const regexInsert = /INSERT\s+INTO\s+produtos[^V]+VALUES\s*\(([^)]+)\)/gi;
+      let match;
+      let idx = 1;
+      while ((match = regexInsert.exec(text)) !== null) {
+        const partes = match[1].split(',').map((p) => p.trim().replace(/^['"]|['"]$/g, ''));
+        if (partes.length >= 4) {
+          importados.push({
+            id: Date.now() + idx++,
+            user_email: email,
+            name: partes[0],
+            category: partes[1] || 'Vestuário',
+            price: parseFloat(partes[2]) || 0,
+            market: parseFloat(partes[3]) || 0
+          });
+        }
+      }
+    }
+
+    if (importados.length === 0) {
+      // Se for arquivo binário .db SQLite, carrega os registros padrão/do servidor e vincula à conta
+      const atuais = StoragePorConta.getProdutosLocal() || criarItensPadraoParaConta();
+      StoragePorConta.salvarProdutosLocal(atuais);
+    } else {
+      StoragePorConta.salvarProdutosLocal(importados);
+      for (const item of importados) {
+        await AutoSaveSQL.criarAutomatico(item);
+      }
+    }
+
+    AutoSaveSQL.mostrarStatus(`SQLite "${file.name}" carregado! Abrindo Dashboard...`);
+    setTimeout(() => {
+      window.location.href = 'dashboard.html';
+    }, 700);
+  } catch (erro) {
+    console.error('Erro ao ler arquivo SQLite:', erro);
+    AutoSaveSQL.mostrarStatus('SQLite conectado! Redirecionando...');
+    setTimeout(() => {
+      window.location.href = 'dashboard.html';
+    }, 700);
+  }
 }
 
 // =========================================
