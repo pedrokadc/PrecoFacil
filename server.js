@@ -7,12 +7,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isVercel = process.env.VERCEL === '1';
 
-// Configurações
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Caminho do banco adaptado para Vercel (/tmp) ou Local (./banco.db)
 const dbPath = isVercel
   ? path.join('/tmp', 'banco.db')
   : path.join(__dirname, 'banco.db');
@@ -21,7 +19,6 @@ const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Erro ao abrir o banco de dados:', err.message);
   } else {
-    console.log(`Conectado ao banco SQLite em: ${dbPath}`);
     criarTabelas();
   }
 });
@@ -64,17 +61,11 @@ function criarTabelas() {
   });
 }
 
-// Middleware para garantir conexão e tabelas em ambiente serverless
 app.use((req, res, next) => {
   criarTabelas();
   next();
 });
 
-// =========================================
-// ROTAS DA API (SQL PADRÃO AUTOMÁTICO)
-// =========================================
-
-// 1. Listar produtos (SELECT)
 app.get('/api/produtos', (req, res) => {
   db.all("SELECT * FROM produtos ORDER BY id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ erro: err.message });
@@ -82,7 +73,6 @@ app.get('/api/produtos', (req, res) => {
   });
 });
 
-// 2. Inserir novo produto (INSERT)
 app.post('/api/produtos', (req, res) => {
   const { name = 'Novo Produto', category = 'Vestuário', price = 0, market = 0 } = req.body;
   const sql = "INSERT INTO produtos (name, category, price, market) VALUES (?, ?, ?, ?)";
@@ -93,7 +83,6 @@ app.post('/api/produtos', (req, res) => {
   });
 });
 
-// 3. Atualização automática em tempo real (UPDATE)
 app.put('/api/produtos/:id', (req, res) => {
   const { id } = req.params;
   const { name, category, price, market } = req.body;
@@ -113,7 +102,6 @@ app.put('/api/produtos/:id', (req, res) => {
   });
 });
 
-// 4. Remover produto (DELETE)
 app.delete('/api/produtos/:id', (req, res) => {
   const { id } = req.params;
   db.run("DELETE FROM produtos WHERE id = ?", [id], function(err) {
@@ -122,7 +110,6 @@ app.delete('/api/produtos/:id', (req, res) => {
   });
 });
 
-// 5. Consultar plano ativo mais recente (SELECT)
 app.get('/api/planos', (req, res) => {
   db.get("SELECT * FROM assinaturas ORDER BY id DESC LIMIT 1", [], (err, row) => {
     if (err) return res.status(500).json({ erro: err.message });
@@ -130,7 +117,6 @@ app.get('/api/planos', (req, res) => {
   });
 });
 
-// 6. Salvar escolha de plano diretamente no banco da Vercel (INSERT)
 app.post('/api/planos', (req, res) => {
   const { plano, periodo } = req.body;
   const sql = "INSERT INTO assinaturas (plano, periodo) VALUES (?, ?)";
@@ -141,12 +127,11 @@ app.post('/api/planos', (req, res) => {
       id: this.lastID,
       plano,
       periodo,
-      mensagem: `Plano ${plano} (${periodo}) ativado e salvo no servidor!`
+      mensagem: `Plano ${plano} (${periodo}) salvo automaticamente na Vercel!`
     });
   });
 });
 
-// Inicia localmente se não estiver na Vercel
 if (!isVercel) {
   app.listen(PORT, () => {
     console.log(`Servidor rodando em: http://localhost:${PORT}`);
