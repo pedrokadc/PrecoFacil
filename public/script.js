@@ -5,10 +5,10 @@ const AutoSaveSQL = {
   timers: {},
   badgeTimer: null,
 
-  // Dispara UPDATE SQL 600ms após o usuário parar de digitar/alterar
+  // Dispara UPDATE SQL automaticamente 600ms após parar de digitar/alterar
   salvarAlteracao(id, dados, callbackSucesso) {
     clearTimeout(this.timers[id]);
-    this.mostrarStatus('Salvando no banco...');
+    this.mostrarStatus('Salvando na Vercel...');
 
     this.timers[id] = setTimeout(async () => {
       try {
@@ -31,9 +31,9 @@ const AutoSaveSQL = {
     }, 600);
   },
 
-  // Insere novo registro imediatamente (INSERT)
+  // Insere novo registro automaticamente no banco (INSERT)
   async criarAutomatico(dados) {
-    this.mostrarStatus('Salvando novo item...');
+    this.mostrarStatus('Criando e salvando na Vercel...');
     const resposta = await fetch('/api/produtos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -73,10 +73,19 @@ const AutoSaveSQL = {
 let produtosLista = [];
 let cobrancaAnual = false;
 let planoSelecionado = { nome: 'Starter', valor: 0 };
+let novoProdutoCriadoId = null;
+let timerNovoProduto = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  const page = document.body.dataset.page;
+  // Remove qualquer botão residual de exportar/salvar SQL caso exista no DOM
+  document.querySelectorAll('button, a').forEach((el) => {
+    const txt = (el.textContent || '').toLowerCase();
+    if (txt.includes('salvar sql') || txt.includes('baixar sql') || txt.includes('exportar sql')) {
+      el.remove();
+    }
+  });
 
+  const page = document.body.dataset.page;
   renderizarNavAuth();
 
   if (page === 'dashboard') {
@@ -106,7 +115,7 @@ function formatarMoeda(valor) {
 }
 
 // =========================================
-// LÓGICA DO DASHBOARD (AUTO-SAVE INLINE)
+// LÓGICA DO DASHBOARD (100% AUTO-SAVE)
 // =========================================
 async function iniciarDashboard() {
   const mainContent = document.getElementById('dashboardMainContent');
@@ -121,35 +130,58 @@ async function iniciarDashboard() {
   if (searchInput) searchInput.addEventListener('input', renderizarTabela);
   if (categoryFilter) categoryFilter.addEventListener('change', renderizarTabela);
 
-  // Modal de Novo Produto (criação rápida + auto-save)
+  // Modal de Novo Produto (Auto-save sem botão Salvar)
   const modal = document.getElementById('productModal');
   const openBtn = document.getElementById('openModalBtn');
   const closeBtn = document.getElementById('closeModalBtn');
   const form = document.getElementById('productForm');
 
   if (openBtn && modal) {
-    openBtn.addEventListener('click', () => modal.classList.add('active'));
+    openBtn.addEventListener('click', () => {
+      novoProdutoCriadoId = null;
+      if (form) form.reset();
+      modal.classList.add('active');
+    });
   }
+
   if (closeBtn && modal) {
-    closeBtn.addEventListener('click', () => modal.classList.remove('active'));
+    closeBtn.addEventListener('click', () => {
+      novoProdutoCriadoId = null;
+      modal.classList.remove('active');
+    });
   }
 
+  // Salva automaticamente ao digitar no modal de novo produto (sem precisar de botão submit)
   if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const novoProduto = {
-        name: document.getElementById('prodName').value.trim(),
-        category: document.getElementById('prodCategory').value,
-        price: parseFloat(document.getElementById('prodPrice').value) || 0,
-        market: parseFloat(document.getElementById('prodMarket').value) || 0
-      };
+    form.addEventListener('submit', (e) => e.preventDefault());
 
-      const criado = await AutoSaveSQL.criarAutomatico(novoProduto);
-      produtosLista.unshift(criado);
-      renderizarTabela();
-      atualizarKPIs();
-      form.reset();
-      if (modal) modal.classList.remove('active');
+    form.addEventListener('input', () => {
+      clearTimeout(timerNovoProduto);
+      timerNovoProduto = setTimeout(async () => {
+        const name = document.getElementById('prodName').value.trim();
+        if (!name) return;
+
+        const dados = {
+          name,
+          category: document.getElementById('prodCategory').value,
+          price: parseFloat(document.getElementById('prodPrice').value) || 0,
+          market: parseFloat(document.getElementById('prodMarket').value) || 0
+        };
+
+        if (!novoProdutoCriadoId) {
+          const criado = await AutoSaveSQL.criarAutomatico(dados);
+          novoProdutoCriadoId = criado.id;
+          produtosLista.unshift(criado);
+          renderizarTabela();
+          atualizarKPIs();
+        } else {
+          const item = produtosLista.find((p) => p.id === novoProdutoCriadoId);
+          if (item) Object.assign(item, dados);
+          renderizarTabela();
+          atualizarKPIs();
+          AutoSaveSQL.salvarAlteracao(novoProdutoCriadoId, dados);
+        }
+      }, 600);
     });
   }
 }
@@ -269,7 +301,7 @@ function renderizarTabela() {
   }).join('');
 }
 
-// Listener global de Auto-Save para qualquer campo editado na tabela (sem botão salvar)
+// Listener global de Auto-Save para qualquer campo editado na tabela
 document.addEventListener('input', (e) => {
   const el = e.target;
   const id = Number(el.dataset.id);
@@ -281,7 +313,6 @@ document.addEventListener('input', (e) => {
     ? parseFloat(el.value) || 0
     : el.value;
 
-  // Atualiza estado local imediatamente e recalcula variação/KPIs
   const item = produtosLista.find((p) => p.id === id);
   if (item) {
     item[campo] = valor;
@@ -289,7 +320,6 @@ document.addEventListener('input', (e) => {
     atualizarKPIs();
   }
 
-  // Envia UPDATE SQL automático para o servidor
   AutoSaveSQL.salvarAlteracao(id, { [campo]: valor });
 });
 
@@ -321,14 +351,14 @@ function atualizarKPIs() {
 }
 
 async function removerProduto(id) {
-  AutoSaveSQL.mostrarStatus('Removendo...');
+  AutoSaveSQL.mostrarStatus('Removendo da Vercel...');
   try {
     const res = await fetch(`/api/produtos/${id}`, { method: 'DELETE' });
     if (res.ok) {
       produtosLista = produtosLista.filter((p) => p.id !== id);
       renderizarTabela();
       atualizarKPIs();
-      AutoSaveSQL.mostrarStatus('Removido do banco ✓');
+      AutoSaveSQL.mostrarStatus('Removido automaticamente ✓');
     }
   } catch (erro) {
     console.error('Erro ao remover:', erro);
@@ -349,7 +379,6 @@ function iniciarPlanos() {
   const pixFields = document.getElementById('pixFields');
   const paymentForm = document.getElementById('paymentForm');
 
-  // Alternar Mensal / Anual (-20%)
   if (billingSwitch) {
     billingSwitch.addEventListener('click', () => {
       cobrancaAnual = !cobrancaAnual;
@@ -362,14 +391,12 @@ function iniciarPlanos() {
     });
   }
 
-  // Fechar modal de checkout
   if (closeCheckoutBtn && checkoutModal) {
     closeCheckoutBtn.addEventListener('click', () => {
       checkoutModal.classList.remove('active');
     });
   }
 
-  // Alternar abas Cartão / PIX
   if (btnMethodCard && btnMethodPix) {
     btnMethodCard.addEventListener('click', () => {
       btnMethodCard.classList.add('active');
@@ -386,7 +413,6 @@ function iniciarPlanos() {
     });
   }
 
-  // Confirmar pagamento / ativação -> Envia POST direto para /api/planos na Vercel
   if (paymentForm) {
     paymentForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -396,19 +422,16 @@ function iniciarPlanos() {
   }
 }
 
-// Função chamada pelo onclick="openCheckout('Starter', 0)" do planos.html
 window.openCheckout = async function(nomePlano, precoMensal) {
   const periodo = cobrancaAnual ? 'Anual' : 'Mensal';
   const precoFinal = cobrancaAnual ? Math.round(precoMensal * 0.8) : precoMensal;
   planoSelecionado = { nome: nomePlano, valor: precoFinal };
 
-  // Se for plano gratuito (Starter), ativa e salva imediatamente na Vercel sem abrir checkout
   if (precoFinal === 0) {
     await salvarPlanoNoServidor(nomePlano, periodo);
     return;
   }
 
-  // Abre modal de checkout para planos pagos
   const checkoutModal = document.getElementById('checkoutModal');
   const checkoutTitle = document.getElementById('checkoutTitle');
   const checkoutPrice = document.getElementById('checkoutPrice');
@@ -418,9 +441,8 @@ window.openCheckout = async function(nomePlano, precoMensal) {
   if (checkoutModal) checkoutModal.classList.add('active');
 };
 
-// Salva a assinatura diretamente no banco da Vercel (sem gerar download de arquivo .sql)
 async function salvarPlanoNoServidor(plano, periodo) {
-  AutoSaveSQL.mostrarStatus(`Ativando plano ${plano}...`);
+  AutoSaveSQL.mostrarStatus(`Salvando plano ${plano} na Vercel...`);
 
   try {
     const resposta = await fetch('/api/planos', {
@@ -433,7 +455,7 @@ async function salvarPlanoNoServidor(plano, periodo) {
 
     if (resposta.ok) {
       localStorage.setItem('precofacil_plano', plano);
-      AutoSaveSQL.mostrarStatus(dados.mensagem || `Plano ${plano} salvo com sucesso ✓`);
+      AutoSaveSQL.mostrarStatus(dados.mensagem || `Plano ${plano} salvo na Vercel ✓`);
 
       const checkoutModal = document.getElementById('checkoutModal');
       if (checkoutModal) checkoutModal.classList.remove('active');
@@ -442,7 +464,7 @@ async function salvarPlanoNoServidor(plano, periodo) {
         window.location.href = 'dashboard.html';
       }, 700);
     } else {
-      AutoSaveSQL.mostrarStatus(dados.erro || 'Erro ao ativar plano', true);
+      AutoSaveSQL.mostrarStatus(dados.erro || 'Erro ao salvar plano', true);
     }
   } catch (erro) {
     console.error('Erro ao salvar plano na Vercel:', erro);
