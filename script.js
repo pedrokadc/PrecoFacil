@@ -31,7 +31,7 @@ const AutoSaveSQL = {
   },
 
   async criarAutomatico(dados) {
-    this.mostrarStatus('Criando e salvando na Vercel...');
+    this.mostrarStatus('Salvando produto na Vercel...');
     try {
       const resposta = await fetch('/api/produtos', {
         method: 'POST',
@@ -40,16 +40,15 @@ const AutoSaveSQL = {
       });
       if (resposta.ok) {
         const novoItem = await resposta.json();
-        this.mostrarStatus('Salvo automaticamente ✓');
+        this.mostrarStatus('Produto salvo na Vercel ✓');
         return novoItem;
       }
     } catch (erro) {
       console.error('Erro ao criar no servidor:', erro);
     }
 
-    // Fallback garantido caso o servidor esteja reiniciando
     const itemLocal = { id: Date.now(), ...dados };
-    this.mostrarStatus('Adicionado automaticamente ✓');
+    this.mostrarStatus('Produto adicionado ✓');
     return itemLocal;
   },
 
@@ -89,9 +88,6 @@ const ITENS_PADRAO = [
 let produtosLista = [];
 let cobrancaAnual = false;
 let planoSelecionado = { nome: 'Starter', valor: 0 };
-let novoProdutoCriadoId = null;
-let criandoProdutoLock = false;
-let timerNovoProduto = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('a[href="#dashboard"]').forEach((link) => {
@@ -101,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     link.setAttribute('href', 'planos.html');
   });
 
+  // Remove apenas botões antigos de baixar/exportar arquivo .sql
   document.querySelectorAll('button, a').forEach((el) => {
     const txt = (el.textContent || '').toLowerCase();
     if (txt.includes('salvar sql') || txt.includes('baixar sql') || txt.includes('exportar sql')) {
@@ -304,7 +301,7 @@ function atualizarEstadoAbasAuth(ativo) {
 }
 
 // =========================================
-// LÓGICA DO DASHBOARD (ITENS PADRÃO + CRIAÇÃO AUTOMÁTICA)
+// LÓGICA DO DASHBOARD (ITENS PADRÃO + CRIAÇÃO + AUTO-SAVE)
 // =========================================
 async function iniciarDashboard() {
   const mainContent = document.getElementById('dashboardMainContent');
@@ -343,8 +340,6 @@ async function iniciarDashboard() {
 
   if (openBtn && modal) {
     openBtn.addEventListener('click', () => {
-      novoProdutoCriadoId = null;
-      criandoProdutoLock = false;
       if (form) form.reset();
       modal.classList.add('active');
       modal.style.display = 'flex';
@@ -355,15 +350,15 @@ async function iniciarDashboard() {
 
   if (closeBtn && modal) {
     closeBtn.addEventListener('click', () => {
-      novoProdutoCriadoId = null;
-      criandoProdutoLock = false;
       modal.classList.remove('active');
       modal.style.display = '';
     });
   }
 
   if (form) {
-    const processarNovoProduto = async () => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
       const nameEl = document.getElementById('prodName');
       const catEl = document.getElementById('prodCategory');
       const priceEl = document.getElementById('prodPrice');
@@ -379,50 +374,17 @@ async function iniciarDashboard() {
         market: marketEl ? (parseFloat(marketEl.value) || 0) : 0
       };
 
-      if (!novoProdutoCriadoId && !criandoProdutoLock) {
-        criandoProdutoLock = true;
-        const criado = await AutoSaveSQL.criarAutomatico(dados);
-        novoProdutoCriadoId = criado.id;
-        criandoProdutoLock = false;
+      const criado = await AutoSaveSQL.criarAutomatico(dados);
+      produtosLista.unshift(criado);
+      renderizarTabela();
+      atualizarKPIs();
 
-        // Garante que valores digitados durante a requisição também sejam atualizados
-        const dadosAtuais = {
-          name: nameEl ? nameEl.value.trim() : dados.name,
-          category: catEl ? catEl.value : dados.category,
-          price: priceEl ? (parseFloat(priceEl.value) || 0) : dados.price,
-          market: marketEl ? (parseFloat(marketEl.value) || 0) : dados.market
-        };
-        Object.assign(criado, dadosAtuais);
-        produtosLista.unshift(criado);
-        renderizarTabela();
-        atualizarKPIs();
-        AutoSaveSQL.salvarAlteracao(novoProdutoCriadoId, dadosAtuais);
-      } else if (novoProdutoCriadoId) {
-        const item = produtosLista.find((p) => p.id === novoProdutoCriadoId);
-        if (item) Object.assign(item, dados);
-        renderizarTabela();
-        atualizarKPIs();
-        AutoSaveSQL.salvarAlteracao(novoProdutoCriadoId, dados);
-      }
-    };
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      clearTimeout(timerNovoProduto);
-      await processarNovoProduto();
+      form.reset();
       if (modal) {
         modal.classList.remove('active');
         modal.style.display = '';
       }
     });
-
-    const agendarCriacao = () => {
-      clearTimeout(timerNovoProduto);
-      timerNovoProduto = setTimeout(processarNovoProduto, 450);
-    };
-
-    form.addEventListener('input', agendarCriacao);
-    form.addEventListener('change', agendarCriacao);
   }
 }
 
@@ -543,6 +505,7 @@ function renderizarTabela() {
   }).join('');
 }
 
+// Auto-save automático ao editar qualquer campo diretamente na tabela
 document.addEventListener('input', (e) => {
   const el = e.target;
   const id = Number(el.dataset.id);
