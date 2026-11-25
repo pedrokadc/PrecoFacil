@@ -4,65 +4,77 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const isVercel = process.env.VERCEL === '1';
 
 // Configurações
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'))); // Serve os arquivos HTML/CSS/JS
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Conectar / Criar o Banco de Dados SQLite
-const db = new sqlite3.Database('./banco.db', (err) => {
+// Caminho do banco adaptado para Vercel (/tmp) ou Local (./banco.db)
+const dbPath = isVercel
+  ? path.join('/tmp', 'banco.db')
+  : path.join(__dirname, 'banco.db');
+
+const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Erro ao abrir o banco de dados:', err.message);
   } else {
-    console.log('Conectado ao banco de dados SQLite (banco.db).');
+    console.log(`Conectado ao banco SQLite em: ${dbPath}`);
     criarTabelas();
   }
 });
 
-// Criar tabelas e dados iniciais
+// Garantir que as tabelas existam antes de responder às requisições
+let dbInicializado = false;
 function criarTabelas() {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS produtos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      price REAL NOT NULL,
-      market REAL NOT NULL,
-      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `, () => {
-    // Verifica se a tabela está vazia para inserir exemplos iniciais
+  if (dbInicializado) return;
+  db.serialize(() => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS produtos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        price REAL NOT NULL,
+        market REAL NOT NULL,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     db.get("SELECT COUNT(*) AS total FROM produtos", (err, row) => {
-      if (row && row.total === 0) {
+      if (!err && row && row.total === 0) {
         const stmt = db.prepare("INSERT INTO produtos (name, category, price, market) VALUES (?, ?, ?, ?)");
         stmt.run("Jaqueta Corta-Vento Minimal", "Vestuário", 249.90, 279.90);
         stmt.run("Tênis Urbano Couro Branco", "Calçados", 329.00, 310.00);
         stmt.run("Camiseta Algodão Pima Preta", "Vestuário", 89.90, 105.00);
         stmt.run("Mochila Executiva Impermeável", "Acessórios", 199.00, 229.00);
         stmt.finalize();
-        console.log("Produtos iniciais inseridos no banco.");
       }
     });
-  });
 
-  // Tabela para registrar assinaturas de planos
-  db.run(`
-    CREATE TABLE IF NOT EXISTS assinaturas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      plano TEXT NOT NULL,
-      periodo TEXT NOT NULL,
-      data_assinatura DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS assinaturas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plano TEXT NOT NULL,
+        periodo TEXT NOT NULL,
+        data_assinatura DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    dbInicializado = true;
+  });
 }
 
+// Middleware de segurança para garantir tabelas criadas em ambiente serverless
+app.use((req, res, next) => {
+  criarTabelas();
+  next();
+});
+
 // =========================================
-// ROTAS DA API (CONEXÃO COM O FRONT-END)
+// ROTAS DA API
 // =========================================
 
-// 1. Listar todos os produtos (GET)
 app.get('/api/produtos', (req, res) => {
   db.all("SELECT * FROM produtos ORDER BY id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ erro: err.message });
@@ -70,7 +82,6 @@ app.get('/api/produtos', (req, res) => {
   });
 });
 
-// 2. Adicionar um novo produto (POST)
 app.post('/api/produtos', (req, res) => {
   const { name, category, price, market } = req.body;
   const sql = "INSERT INTO produtos (name, category, price, market) VALUES (?, ?, ?, ?)";
@@ -81,7 +92,6 @@ app.post('/api/produtos', (req, res) => {
   });
 });
 
-// 3. Remover um produto (DELETE)
 app.delete('/api/produtos/:id', (req, res) => {
   const { id } = req.params;
   db.run("DELETE FROM produtos WHERE id = ?", id, function(err) {
@@ -90,7 +100,6 @@ app.delete('/api/produtos/:id', (req, res) => {
   });
 });
 
-// 4. Salvar escolha de plano (POST)
 app.post('/api/planos', (req, res) => {
   const { plano, periodo } = req.body;
   db.run("INSERT INTO assinaturas (plano, periodo) VALUES (?, ?)", [plano, periodo], function(err) {
@@ -99,7 +108,12 @@ app.post('/api/planos', (req, res) => {
   });
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`Servidor rodando em: http://localhost:${PORT}`);
-});
+// Inicia o servidor apenas quando executado localmente
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando em: http://localhost:${PORT}`);
+  });
+}
+
+// Exporta o app para a Vercel
+module.exports = app;
