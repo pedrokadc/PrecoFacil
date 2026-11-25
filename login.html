@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrar ou Criar Conta — Preço Fácil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="login">
+
+  <!-- BARRA DE NAVEGAÇÃO -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+        </div>
+        Preço fácil
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="planos.html">Pay <span class="dot">·</span> Planos</a></li>
+      </ul>
+
+      <div id="navAuthArea"></div>
+    </div>
+  </header>
+
+  <main class="auth-wrapper">
+    <div class="auth-card">
+      <!-- Abas Login / Cadastro -->
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" id="tabLogin">Entrar</button>
+        <button type="button" class="auth-tab" id="tabRegister">Criar conta</button>
+      </div>
+
+      <!-- Mensagem de erro/sucesso -->
+      <div id="authAlert" class="auth-alert"></div>
+
+      <!-- FORMULÁRIO DE LOGIN -->
+      <form id="loginForm" class="auth-form">
+        <h2>Bem-vindo de volta</h2>
+        <p class="auth-subtitle">Acesse sua conta para gerenciar seus preços e assinatura.</p>
+
+        <div class="form-group">
+          <label for="loginEmail">E-mail</label>
+          <input type="email" id="loginEmail" required placeholder="seu@email.com">
+        </div>
+
+        <div class="form-group">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••">
+        </div>
+
+        <button type="submit" class="cta-button full-width">Entrar na conta</button>
+      </form>
+
+      <!-- FORMULÁRIO DE CRIAR CONTA -->
+      <form id="registerForm" class="auth-form" style="display: none;">
+        <h2>Crie sua conta grátis</h2>
+        <p class="auth-subtitle">Cadastre-se e ative um plano para liberar o Dashboard.</p>
+
+        <div class="form-group">
+          <label for="regName">Nome completo ou da loja</label>
+          <input type="text" id="regName" required placeholder="Ex: Loja Bella Moda">
+        </div>
+
+        <div class="form-group">
+          <label for="regEmail">E-mail</label>
+          <input type="email" id="regEmail" required placeholder="seu@email.com">
+        </div>
+
+        <div class="form-group">
+          <label for="regPassword">Crie uma senha</label>
+          <input type="password" id="regPassword" minlength="4" required placeholder="Mínimo 4 caracteres">
+        </div>
+
+        <button type="submit" class="cta-button full-width">Criar minha conta</button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="footer">
+    © 2026 Preço Fácil. Todos os direitos reservados.
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

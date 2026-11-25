@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pay · Planos — Preço Fácil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="planos">
+
+  <!-- BARRA DE NAVEGAÇÃO -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+        </div>
+        Preço fácil
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="planos.html" class="active">Pay <span class="dot">·</span> Planos</a></li>
+      </ul>
+
+      <div id="navAuthArea"></div>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <div class="plans-header">
+      <span class="eyebrow">Pay · Planos</span>
+      <h1 class="main-title">Escolha o plano ideal para o seu negócio</h1>
+      <p class="main-subtitle">Ative um plano gratuito ou pago na sua conta para liberar o acesso ao Dashboard.</p>
+
+      <div class="billing-toggle">
+        <span>Mensal</span>
+        <button type="button" id="billingSwitch" class="switch" aria-label="Alternar cobrança anual"></button>
+        <span>Anual <span class="discount-tag">-20%</span></span>
+      </div>
+    </div>
+
+    <div class="plans-grid">
+      <!-- Plano 1 -->
+      <div class="plan-card">
+        <h3 class="plan-name">Starter</h3>
+        <p class="plan-desc">Ideal para quem está começando a organizar a tabela de preços.</p>
+        <div class="plan-price" data-monthly="0" data-yearly="0">R$ 0<span>/mês</span></div>
+        <ul class="plan-features">
+          <li>Até 10 produtos cadastrados</li>
+          <li>Filtros básicos por categoria</li>
+          <li>Comparação manual de valores</li>
+          <li>Acesso ao dashboard web</li>
+        </ul>
+        <button type="button" class="plan-btn" data-plan="Starter" onclick="openCheckout('Starter', 0)">Ativar grátis</button>
+      </div>
+
+      <!-- Plano 2 (Destaque) -->
+      <div class="plan-card featured">
+        <span class="popular-badge">Mais escolhido</span>
+        <h3 class="plan-name">Pro</h3>
+        <p class="plan-desc">Para lojistas que precisam de agilidade e inteligência competitiva.</p>
+        <div class="plan-price" data-monthly="79" data-yearly="63">R$ 79<span>/mês</span></div>
+        <ul class="plan-features">
+          <li>Produtos ilimitados</li>
+          <li>Alertas automáticos de variação</li>
+          <li>Importação via planilha (CSV/Excel)</li>
+          <li>Relatórios de oportunidade</li>
+          <li>Suporte prioritário</li>
+        </ul>
+        <button type="button" class="plan-btn" data-plan="Pro" onclick="openCheckout('Pro', 79)">Assinar plano Pro</button>
+      </div>
+
+      <!-- Plano 3 -->
+      <div class="plan-card">
+        <h3 class="plan-name">Business</h3>
+        <p class="plan-desc">Gestão avançada para equipes e múltiplas lojas ou filiais.</p>
+        <div class="plan-price" data-monthly="189" data-yearly="151">R$ 189<span>/mês</span></div>
+        <ul class="plan-features">
+          <li>Tudo do plano Pro</li>
+          <li>Até 10 usuários simultâneos</li>
+          <li>Integração via API e ERP</li>
+          <li>Histórico completo de preços</li>
+          <li>Gerente de conta dedicado</li>
+        </ul>
+        <button type="button" class="plan-btn" data-plan="Business" onclick="openCheckout('Business', 189)">Assinar Business</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL DE CHECKOUT / PAGAMENTO -->
+  <div class="modal-overlay" id="checkoutModal">
+    <div class="modal-box checkout-box">
+      <div class="checkout-header">
+        <div>
+          <span class="eyebrow" style="margin-bottom: 4px;">Finalizar Assinatura</span>
+          <h3 id="checkoutTitle" style="margin-bottom: 0;">Plano Pro</h3>
+        </div>
+        <div class="checkout-price" id="checkoutPrice">R$ 79,00/mês</div>
+      </div>
+
+      <!-- Abas Cartão / PIX -->
+      <div class="pay-methods">
+        <button type="button" class="pay-method active" id="btnMethodCard">Cartão de Crédito</button>
+        <button type="button" class="pay-method" id="btnMethodPix">PIX Instantâneo</button>
+      </div>
+
+      <form id="paymentForm">
+        <!-- Campos Cartão -->
+        <div id="cardFields">
+          <div class="form-group">
+            <label for="cardName">Nome impresso no cartão</label>
+            <input type="text" id="cardName" placeholder="Ex: JOAO S SILVA">
+          </div>
+          <div class="form-group">
+            <label for="cardNumber">Número do cartão</label>
+            <input type="text" id="cardNumber" maxlength="19" placeholder="0000 0000 0000 0000">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cardExpiry">Validade</label>
+              <input type="text" id="cardExpiry" maxlength="5" placeholder="MM/AA">
+            </div>
+            <div class="form-group">
+              <label for="cardCvv">CVV</label>
+              <input type="text" id="cardCvv" maxlength="4" placeholder="123">
+            </div>
+          </div>
+        </div>
+
+        <!-- Campos PIX -->
+        <div id="pixFields" style="display: none;">
+          <div class="pix-box">
+            <div class="pix-qr-mock">QR CODE PIX</div>
+            <p>Escaneie o QR Code ou copie o código PIX abaixo para liberar o plano na hora:</p>
+            <input type="text" readonly value="00020126360014BR.GOV.BCB.PIX0114precofacil@pay.br5204000053039865802BR" class="pix-code">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="closeCheckoutBtn" class="btn-cancel">Cancelar</button>
+          <button type="submit" id="confirmPayBtn" class="cta-button">Confirmar pagamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    © 2026 Preço Fácil. Todos os direitos reservados.
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preço Fácil — Inteligência de preços sem complicação</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js" defer></script>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <a href="#mainContent" class="skip-link">Pular para o conteúdo principal</a>
+
+  <!-- RÉGUA DE LEITURA (ACESSIBILIDADE) -->
+  <div id="readingGuideBar" class="reading-guide-bar" aria-hidden="true"></div>
+
+  <!-- BARRA DE NAVEGAÇÃO GLOBAL -->
+  <header class="navbar" role="banner">
+    <div class="nav-container">
+      <a href="#home" class="logo" onclick="navigateTo('home'); return false;" aria-label="Preço Fácil - Ir para página inicial">
+        <div class="logo-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+        </div>
+        <span>Preço fácil</span>
+      </a>
+
+      <nav aria-label="Navegação principal">
+        <ul class="nav-links" id="navLinks">
+          <li><a href="#home" data-nav="home" class="active" onclick="navigateTo('home'); return false;">Home</a></li>
+          <li><a href="#dashboard" data-nav="dashboard" onclick="navigateTo('dashboard'); return false;">Dashboard</a></li>
+          <li><a href="#planos" data-nav="planos" onclick="navigateTo('planos'); return false;">Pay <span class="dot">·</span> Planos</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-right">
+        <button type="button" class="btn-disk-sync" id="btnDiskSync" onclick="connectOrSaveSQLiteFile()" title="Vincular ou salvar banco SQLite no disco rígido">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+          </svg>
+          <span id="diskSyncLabel">Salvar .sqlite</span>
+        </button>
+
+        <div id="navAuthArea">
+          <button type="button" class="nav-cta" onclick="navigateTo('login')">Entrar / Criar conta</button>
+        </div>
+
+        <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Abrir menu de navegação" aria-expanded="false">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- MENU DROPDOWN MOBILE -->
+    <div class="mobile-drawer" id="mobileDrawer" role="navigation" aria-label="Menu mobile">
+      <a href="#home" data-nav="home" class="active" onclick="navigateTo('home'); closeMobileMenu(); return false;">Home</a>
+      <a href="#dashboard" data-nav="dashboard" onclick="navigateTo('dashboard'); closeMobileMenu(); return false;">Dashboard</a>
+      <a href="#planos" data-nav="planos" onclick="navigateTo('planos'); closeMobileMenu(); return false;">Pay · Planos</a>
+      <button type="button" class="btn-outline" style="margin-top: 6px;" onclick="openSQLiteFileFromDisk(); closeMobileMenu();">Abrir arquivo .sqlite do PC</button>
+    </div>
+  </header>
+
+  <main id="mainContent" tabindex="-1">
+    <!-- =========================================
+         TELA 1: HOME (PÁGINA INICIAL)
+         ========================================= -->
+    <div id="view-home" class="page-view active">
+      <section class="hero-section">
+        <div class="hero-container">
+          <div class="hero-content">
+            <span class="hero-eyebrow">Inteligência de preços sem complicação</span>
+            <h1 class="hero-title">O preço certo, na hora certa.</h1>
+            <p class="hero-subtitle">
+              O Preço Fácil ajuda você a visualizar, comparar e acompanhar preços em um só lugar, salvando seus dados em arquivo SQLite direto no seu computador.
+            </p>
+
+            <div class="hero-buttons">
+              <button type="button" class="btn-lime" onclick="navigateTo('dashboard')">
+                <span>Explorar dashboard</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </button>
+              <button type="button" class="btn-white" onclick="openSQLiteFileFromDisk()">Carregar arquivo .sqlite</button>
+            </div>
+
+            <div class="hero-note">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              <span>Banco de dados SQLite salvo diretamente no disco rígido do seu computador</span>
+            </div>
+          </div>
+
+          <div class="hero-visual">
+            <div class="hero-image-wrapper">
+              <img src="https://images.unsplash.com/photo-1556740758-90de374c12ad?auto=format&fit=crop&w=800&q=80" alt="Lojista analisando tabela de preços em um tablet dentro da loja">
+            </div>
+
+            <div class="hero-floating-group">
+              <div class="float-card-top">
+                <span class="float-label">Visão de preços</span>
+                <h4>Em um só lugar</h4>
+                <span class="float-badge">Mais clareza para decidir</span>
+              </div>
+
+              <div class="float-card-bottom">
+                <span class="float-label">Comparação rápida</span>
+                <h4>Simples de ler</h4>
+                <div class="mini-bars" aria-hidden="true">
+                  <div class="bar"></div>
+                  <div class="bar"></div>
+                  <div class="bar"></div>
+                  <div class="bar"></div>
+                  <div class="bar active"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="features-section">
+        <span class="eyebrow">Feito para facilitar</span>
+        <h2 class="main-title">Seus preços fazem mais sentido quando estão organizados.</h2>
+        <p class="main-subtitle">
+          Uma visão prática para transformar números espalhados em decisões mais seguras para o seu negócio.
+        </p>
+
+        <div class="cards-grid">
+          <div class="card">
+            <div class="icon-box" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              </svg>
+            </div>
+            <h3 class="card-title">Visão centralizada</h3>
+            <p class="card-text">Consulte produtos, categorias e valores em um painel fácil de navegar.</p>
+          </div>
+
+          <div class="card">
+            <div class="icon-box" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <polyline points="8.5 11.5 10.5 13.5 14 9.5"></polyline>
+              </svg>
+            </div>
+            <h3 class="card-title">Persistência em Disco (.sqlite)</h3>
+            <p class="card-text">Vincule um arquivo SQLite local no seu computador para gravação automática em tempo real.</p>
+          </div>
+
+          <div class="card">
+            <div class="icon-box" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                <polyline points="16 7 22 7 22 13"></polyline>
+              </svg>
+            </div>
+            <h3 class="card-title">Decida com contexto</h3>
+            <p class="card-text">Compare variações e identifique oportunidades de margem de forma mais clara.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="cta-wrapper">
+        <section class="cta-section">
+          <div>
+            <span class="eyebrow">Veja na prática</span>
+            <h2 class="cta-title">Uma visão melhor começa aqui.</h2>
+            <p class="cta-subtitle">
+              Explore um dashboard completo com produtos e valores, ou encontre o nível ideal para você.
+            </p>
+          </div>
+
+          <button type="button" class="cta-button" onclick="navigateTo('dashboard')">
+            <span>Abrir dashboard</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+        </section>
+      </div>
+    </div>
+
+    <!-- =========================================
+         TELA 2: LOGIN E CRIAR CONTA
+         ========================================= -->
+    <div id="view-login" class="page-view">
+      <div class="auth-wrapper">
+        <div class="auth-card">
+          <div class="auth-tabs" role="tablist">
+            <button type="button" class="auth-tab active" id="tabLogin" role="tab" aria-selected="true" onclick="switchAuthTab('login')">Entrar</button>
+            <button type="button" class="auth-tab" id="tabRegister" role="tab" aria-selected="false" onclick="switchAuthTab('register')">Criar conta</button>
+          </div>
+
+          <div id="authAlert" class="auth-alert" role="alert"></div>
+
+          <form id="loginForm" class="auth-form">
+            <h2>Bem-vindo de volta</h2>
+            <p class="auth-subtitle">Acesse sua conta ou carregue um arquivo .sqlite existente do seu PC.</p>
+
+            <div class="form-group">
+              <label for="loginEmail">E-mail</label>
+              <input type="email" id="loginEmail" required placeholder="seu@email.com">
+            </div>
+
+            <div class="form-group">
+              <label for="loginPassword">Senha</label>
+              <input type="password" id="loginPassword" required placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="cta-button full-width">Entrar na conta</button>
+            <button type="button" class="btn-outline full-width" style="margin-top: 10px;" onclick="openSQLiteFileFromDisk()">Abrir banco .sqlite do computador</button>
+          </form>
+
+          <form id="registerForm" class="auth-form" style="display: none;">
+            <h2>Crie sua conta grátis</h2>
+            <p class="auth-subtitle">Ao criar sua conta, você poderá salvar o arquivo SQLite direto no disco rígido.</p>
+
+            <div class="form-group">
+              <label for="regName">Nome completo ou da loja</label>
+              <input type="text" id="regName" required placeholder="Ex: Loja Bella Moda">
+            </div>
+
+            <div class="form-group">
+              <label for="regEmail">E-mail</label>
+              <input type="email" id="regEmail" required placeholder="seu@email.com">
+            </div>
+
+            <div class="form-group">
+              <label for="regPassword">Crie uma senha</label>
+              <input type="password" id="regPassword" minlength="4" required placeholder="Mínimo 4 caracteres">
+            </div>
+
+            <button type="submit" class="cta-button full-width">Criar conta e salvar no disco</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========================================
+         TELA 3: PAY · PLANOS
+         ========================================= -->
+    <div id="view-planos" class="page-view">
+      <div class="page-container">
+        <div class="plans-header">
+          <span class="eyebrow">Pay · Planos</span>
+          <h1 class="main-title">Escolha o plano ideal para o seu negócio</h1>
+          <p class="main-subtitle">Ative um plano gratuito ou pago na sua conta para liberar o acesso ao Dashboard.</p>
+
+          <div class="billing-toggle">
+            <span>Mensal</span>
+            <button type="button" id="billingSwitch" class="switch" role="switch" aria-checked="false" aria-label="Alternar entre cobrança mensal e anual" onclick="toggleBillingPeriod()"></button>
+            <span>Anual <span class="discount-tag">-20%</span></span>
+          </div>
+        </div>
+
+        <div class="plans-grid">
+          <div class="plan-card">
+            <h3 class="plan-name">Starter</h3>
+            <p class="plan-desc">Ideal para quem está começando a organizar a tabela de preços.</p>
+            <div class="plan-price" data-monthly="0" data-yearly="0">R$ 0<span>/mês</span></div>
+            <ul class="plan-features">
+              <li>Até 10 produtos cadastrados</li>
+              <li>Filtros básicos por categoria</li>
+              <li>Comparação manual de valores</li>
+              <li>Banco SQLite salvo no computador</li>
+            </ul>
+            <button type="button" class="plan-btn" data-plan="Starter" onclick="openCheckout('Starter', 0)">Ativar grátis</button>
+          </div>
+
+          <div class="plan-card featured">
+            <span class="popular-badge">Mais escolhido</span>
+            <h3 class="plan-name">Pro</h3>
+            <p class="plan-desc">Para lojistas que precisam de agilidade e inteligência competitiva.</p>
+            <div class="plan-price" data-monthly="79" data-yearly="63">R$ 79<span>/mês</span></div>
+            <ul class="plan-features">
+              <li>Produtos ilimitados</li>
+              <li>Alertas automáticos de variação</li>
+              <li>Exportação em CSV e SQLite</li>
+              <li>Relatórios de oportunidade</li>
+              <li>Suporte prioritário</li>
+            </ul>
+            <button type="button" class="plan-btn" data-plan="Pro" onclick="openCheckout('Pro', 79)">Assinar plano Pro</button>
+          </div>
+
+          <div class="plan-card">
+            <h3 class="plan-name">Business</h3>
+            <p class="plan-desc">Gestão avançada para equipes e múltiplas lojas ou filiais.</p>
+            <div class="plan-price" data-monthly="189" data-yearly="151">R$ 189<span>/mês</span></div>
+            <ul class="plan-features">
+              <li>Tudo do plano Pro</li>
+              <li>Até 10 usuários simultâneos</li>
+              <li>Integração via API e ERP</li>
+              <li>Histórico completo de preços</li>
+              <li>Gerente de conta dedicado</li>
+            </ul>
+            <button type="button" class="plan-btn" data-plan="Business" onclick="openCheckout('Business', 189)">Assinar Business</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========================================
+         TELA 4: DASHBOARD ANALÍTICO COMPLETO
+         ========================================= -->
+    <div id="view-dashboard" class="page-view">
+      <div class="page-container">
+        <div id="userStatusBanner" class="user-banner"></div>
+
+        <div class="dash-header">
+          <div>
+            <span class="eyebrow">Inteligência & Precificação</span>
+            <h1 class="main-title">Visão centralizada de preços</h1>
+            <p class="main-subtitle">Acompanhe gráficos comparativos, oportunidades de margem e seu catálogo em tempo real.</p>
+          </div>
+          <div class="dash-actions">
+            <button type="button" class="btn-outline" onclick="connectOrSaveSQLiteFile()">Gravar .sqlite no PC</button>
+            <button type="button" class="btn-outline" onclick="exportToCSV()">Exportar CSV</button>
+            <button type="button" id="openModalBtn" class="cta-button" onclick="openNewProductModal()">+ Novo produto</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Produtos monitorados</span>
+            <div class="kpi-value" id="kpiTotal">0</div>
+            <span class="kpi-trend trend-neutral" id="kpiPlanLimit">Catálogo ativo</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Ticket médio (Seu Preço)</span>
+            <div class="kpi-value" id="kpiAvg">R$ 0,00</div>
+            <span class="kpi-trend trend-neutral" id="kpiMarketAvg">Média mercado: R$ 0,00</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Índice de Competitividade</span>
+            <div class="kpi-value" id="kpiCompetitive">0%</div>
+            <span class="kpi-trend trend-up" id="kpiCompetitiveSub">Itens abaixo do mercado</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Diferença Média Geral</span>
+            <div class="kpi-value" id="kpiDiffAvg">0%</div>
+            <span class="kpi-trend" id="kpiDiffLabel">Equilibrado</span>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <h3>Comparativo: Seu Preço vs. Mercado</h3>
+                <p>Visualização direta dos principais produtos do catálogo</p>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><i class="dot-blue" aria-hidden="true"></i> Seu Preço</span>
+                <span class="legend-item"><i class="dot-gray" aria-hidden="true"></i> Mercado</span>
+              </div>
+            </div>
+            <div id="priceComparisonChart" class="bar-chart-container"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <h3>Mix por Categoria</h3>
+                <p>Participação e valor total por segmento</p>
+              </div>
+            </div>
+            <div id="categoryDistributionChart" class="cat-chart-container"></div>
+          </div>
+        </div>
+
+        <div class="insights-section">
+          <div class="insights-header">
+            <span class="eyebrow" style="margin-bottom: 4px;">Recomendações Automáticas</span>
+            <h3>Dicas de melhoria e oportunidades detectadas</h3>
+          </div>
+          <div id="smartInsightsGrid" class="insights-grid"></div>
+        </div>
+
+        <div class="filters-bar" role="search">
+          <input type="text" id="searchInput" class="search-input" placeholder="Buscar produto por nome..." aria-label="Buscar produto por nome">
+          <select id="categoryFilter" class="select-input" aria-label="Filtrar por categoria">
+            <option value="todas">Todas as categorias</option>
+            <option value="Vestuário">Vestuário</option>
+            <option value="Calçados">Calçados</option>
+            <option value="Acessórios">Acessórios</option>
+            <option value="Eletrônicos">Eletrônicos</option>
+          </select>
+          <select id="statusFilter" class="select-input" aria-label="Filtrar por status de preço">
+            <option value="todos">Todos os status</option>
+            <option value="competitivo">Abaixo do mercado (Competitivo)</option>
+            <option value="acima">Acima do mercado (Atenção)</option>
+          </select>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="responsive-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Categoria</th>
+                <th>Seu Preço</th>
+                <th>Média Mercado</th>
+                <th>Diferença</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: ADICIONAR / EDITAR PRODUTO -->
+  <div class="modal-overlay" id="productModal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
+    <div class="modal-box">
+      <h3 id="productModalTitle">Adicionar novo produto</h3>
+      <form id="productForm">
+        <input type="hidden" id="editProdId">
+        <div class="form-group">
+          <label for="prodName">Nome do produto</label>
+          <input type="text" id="prodName" required placeholder="Ex: Camisa Linho Azul">
+        </div>
+        <div class="form-group">
+          <label for="prodCategory">Categoria</label>
+          <select id="prodCategory">
+            <option value="Vestuário">Vestuário</option>
+            <option value="Calçados">Calçados</option>
+            <option value="Acessórios">Acessórios</option>
+            <option value="Eletrônicos">Eletrônicos</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="prodPrice">Seu Preço (R$)</label>
+          <input type="number" id="prodPrice" step="0.01" required placeholder="149.90">
+        </div>
+        <div class="form-group">
+          <label for="prodMarket">Média do Mercado (R$)</label>
+          <input type="number" id="prodMarket" step="0.01" required placeholder="169.90">
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="closeModalBtn" class="btn-cancel" onclick="closeProductModal()">Cancelar</button>
+          <button type="submit" class="cta-button">Salvar produto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CHECKOUT / PAGAMENTO -->
+  <div class="modal-overlay" id="checkoutModal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
+    <div class="modal-box checkout-box">
+      <div class="checkout-header">
+        <div>
+          <span class="eyebrow" style="margin-bottom: 4px;">Finalizar Assinatura</span>
+          <h3 id="checkoutTitle" style="margin-bottom: 0;">Plano Pro</h3>
+        </div>
+        <div class="checkout-price" id="checkoutPrice">R$ 79,00/mês</div>
+      </div>
+
+      <div class="pay-methods">
+        <button type="button" class="pay-method active" id="btnMethodCard" onclick="selectPayMethod('card')">Cartão de Crédito</button>
+        <button type="button" class="pay-method" id="btnMethodPix" onclick="selectPayMethod('pix')">PIX Instantâneo</button>
+      </div>
+
+      <form id="paymentForm">
+        <div id="cardFields">
+          <div class="form-group">
+            <label for="cardName">Nome impresso no cartão</label>
+            <input type="text" id="cardName" placeholder="Ex: JOAO S SILVA">
+          </div>
+          <div class="form-group">
+            <label for="cardNumber">Número do cartão</label>
+            <input type="text" id="cardNumber" maxlength="19" placeholder="0000 0000 0000 0000">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cardExpiry">Validade</label>
+              <input type="text" id="cardExpiry" maxlength="5" placeholder="MM/AA">
+            </div>
+            <div class="form-group">
+              <label for="cardCvv">CVV</label>
+              <input type="text" id="cardCvv" maxlength="4" placeholder="123">
+            </div>
+          </div>
+        </div>
+
+        <div id="pixFields" style="display: none;">
+          <div class="pix-box">
+            <div class="pix-qr-mock">QR CODE PIX</div>
+            <p>Escaneie o QR Code ou copie o código PIX abaixo para liberar o plano na hora:</p>
+            <input type="text" readonly value="00020126360014BR.GOV.BCB.PIX0114precofacil@pay.br5204000053039865802BR" class="pix-code" aria-label="Código PIX copia e cola">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="closeCheckoutBtn" class="btn-cancel" onclick="closeCheckoutModal()">Cancelar</button>
+          <button type="submit" id="confirmPayBtn" class="cta-button">Confirmar pagamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================
+       WIDGET DE ACESSIBILIDADE UNIVERSAL (WCAG 2.1)
+       ========================================= -->
+  <div class="a11y-widget" id="a11yWidget">
+    <button type="button" id="a11yToggleBtn" class="a11y-fab" aria-label="Abrir menu de acessibilidade (Atalho Alt + A)" aria-expanded="false" title="Acessibilidade (Alt + A)" onclick="toggleA11yPanel()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="5" r="2"></circle>
+        <path d="M5 9h14"></path>
+        <path d="M12 9v6"></path>
+        <path d="M9 21l3-6 3 6"></path>
+      </svg>
+    </button>
+
+    <div id="a11yPanel" class="a11y-panel" role="dialog" aria-label="Ferramentas de Acessibilidade">
+      <div class="a11y-panel-header">
+        <strong>Acessibilidade (Alt+A)</strong>
+        <button type="button" id="a11yCloseBtn" aria-label="Fechar painel de acessibilidade" onclick="closeA11yPanel()">✕</button>
+      </div>
+
+      <div class="a11y-section">
+        <span class="a11y-label">Tamanho do texto (<span id="fontZoomLabel">100%</span>)</span>
+        <div class="a11y-font-controls">
+          <button type="button" onclick="changeFontSize(-10)" aria-label="Diminuir fonte">A-</button>
+          <button type="button" onclick="resetFontSize()" aria-label="Tamanho padrão">100%</button>
+          <button type="button" onclick="changeFontSize(10)" aria-label="Aumentar fonte">A+</button>
+        </div>
+      </div>
+
+      <div class="a11y-options">
+        <button type="button" class="a11y-opt-btn" id="btnContrast" aria-pressed="false" onclick="toggleA11yMode('a11y-high-contrast', this)">
+          <span>Alto Contraste</span>
+        </button>
+        <button type="button" class="a11y-opt-btn" id="btnGrayscale" aria-pressed="false" onclick="toggleA11yMode('a11y-grayscale', this)">
+          <span>Escala de Cinza</span>
+        </button>
+        <button type="button" class="a11y-opt-btn" id="btnDyslexia" aria-pressed="false" onclick="toggleA11yMode('a11y-dyslexia', this)">
+          <span>Leitura Facilitada</span>
+        </button>
+        <button type="button" class="a11y-opt-btn" id="btnReadingGuide" aria-pressed="false" onclick="toggleA11yMode('a11y-reading-guide', this)">
+          <span>Guia de Leitura (Régua)</span>
+        </button>
+        <button type="button" class="a11y-opt-btn" id="btnCursor" aria-pressed="false" onclick="toggleA11yMode('a11y-big-cursor', this)">
+          <span>Cursor Ampliado</span>
+        </button>
+        <button type="button" class="a11y-opt-btn" id="btnMotion" aria-pressed="false" onclick="toggleA11yMode('a11y-reduce-motion', this)">
+          <span>Reduzir Animações</span>
+        </button>
+        <button type="button" class="a11y-opt-btn" id="btnLinks" aria-pressed="false" onclick="toggleA11yMode('a11y-highlight-links', this)">
+          <span>Destacar Links e Botões</span>
+        </button>
+        <button type="button" class="a11y-opt-btn a11y-tts-btn" id="btnTTS" aria-pressed="false" onclick="toggleScreenReader()">
+          <span>Ouvir Página (Voz)</span>
+        </button>
+        <button type="button" class="a11y-reset-btn" onclick="resetAllA11y()">
+          Restaurar Padrão
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICAÇÃO FLUTUANTE ACESSÍVEL (TOAST) -->
+  <div id="toastNotification" class="toast" role="status" aria-live="polite"></div>
+
+  <footer class="footer" role="contentinfo">
+    © 2026 Preço Fácil. Todos os direitos reservados.
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
