@@ -159,6 +159,8 @@ function criarItensPadraoParaConta() {
 let produtosLista = [];
 let cobrancaAnual = false;
 let planoSelecionado = { nome: 'Starter', valor: 0 };
+let chartPrecosInstance = null;
+let chartCategoriasInstance = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('a[href="#dashboard"]').forEach((link) => {
@@ -230,7 +232,6 @@ function renderizarNavAuth() {
 }
 
 window.fazerLogout = function() {
-  // Encerra apenas a sessão atual, mantendo as contas e os dados salvos por e-mail
   localStorage.removeItem('precofacil_user');
   window.location.href = 'login.html';
 };
@@ -413,6 +414,170 @@ function atualizarEstadoAbasAuth(ativo) {
 }
 
 // =========================================
+// MÓDULO DE GRÁFICOS DO DASHBOARD (CHART.JS)
+// =========================================
+function garantirChartJs(callback) {
+  if (window.Chart) {
+    callback();
+    return;
+  }
+  const existing = document.getElementById('chartjs-cdn');
+  if (existing) {
+    existing.addEventListener('load', callback);
+    return;
+  }
+  const script = document.createElement('script');
+  script.id = 'chartjs-cdn';
+  script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+  script.onload = callback;
+  document.head.appendChild(script);
+}
+
+function criarEstruturaGraficos() {
+  if (document.getElementById('dashboardChartsSection')) return;
+
+  const kpiGrid = document.querySelector('.kpi-grid');
+  const mainContent = document.getElementById('dashboardMainContent');
+  if (!mainContent) return;
+
+  const chartsSection = document.createElement('section');
+  chartsSection.id = 'dashboardChartsSection';
+  chartsSection.style.cssText = `
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    margin: 24px 0;
+  `;
+
+  chartsSection.innerHTML = `
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Seu Preço vs. Média do Mercado</h3>
+          <p style="font-size: 12px; color: #64748b; margin: 2px 0 0 0;">Comparativo competitivo por produto (R$)</p>
+        </div>
+      </div>
+      <div style="position: relative; height: 240px; width: 100%;">
+        <canvas id="priceComparisonChart"></canvas>
+      </div>
+    </div>
+
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Distribuição por Categoria</h3>
+          <p style="font-size: 12px; color: #64748b; margin: 2px 0 0 0;">Participação dos produtos cadastrados</p>
+        </div>
+      </div>
+      <div style="position: relative; height: 240px; width: 100%;">
+        <canvas id="categoryDistributionChart"></canvas>
+      </div>
+    </div>
+  `;
+
+  if (kpiGrid && kpiGrid.parentNode) {
+    kpiGrid.parentNode.insertBefore(chartsSection, kpiGrid.nextSibling);
+  } else {
+    mainContent.appendChild(chartsSection);
+  }
+}
+
+function atualizarGraficos() {
+  criarEstruturaGraficos();
+
+  garantirChartJs(() => {
+    const ctxPrecos = document.getElementById('priceComparisonChart');
+    const ctxCategorias = document.getElementById('categoryDistributionChart');
+    if (!ctxPrecos || !ctxCategorias) return;
+
+    const itensVisiveis = produtosLista.slice(0, 8);
+    const labels = itensVisiveis.map((p) =>
+      p.name.length > 18 ? p.name.slice(0, 18) + '…' : p.name
+    );
+    const seusPrecos = itensVisiveis.map((p) => Number(p.price || 0));
+    const mediaMercado = itensVisiveis.map((p) => Number(p.market || 0));
+
+    if (chartPrecosInstance) {
+      chartPrecosInstance.data.labels = labels;
+      chartPrecosInstance.data.datasets[0].data = seusPrecos;
+      chartPrecosInstance.data.datasets[1].data = mediaMercado;
+      chartPrecosInstance.update();
+    } else {
+      chartPrecosInstance = new window.Chart(ctxPrecos, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Seu Preço (R$)',
+              data: seusPrecos,
+              backgroundColor: '#2563eb',
+              borderRadius: 6
+            },
+            {
+              label: 'Média Mercado (R$)',
+              data: mediaMercado,
+              backgroundColor: '#94a3b8',
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // Agrupamento por categoria
+    const contagemCategorias = {};
+    produtosLista.forEach((p) => {
+      const cat = p.category || 'Outros';
+      contagemCategorias[cat] = (contagemCategorias[cat] || 0) + 1;
+    });
+
+    const catLabels = Object.keys(contagemCategorias);
+    const catValores = Object.values(contagemCategorias);
+    const cores = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+    if (chartCategoriasInstance) {
+      chartCategoriasInstance.data.labels = catLabels;
+      chartCategoriasInstance.data.datasets[0].data = catValores;
+      chartCategoriasInstance.update();
+    } else {
+      chartCategoriasInstance = new window.Chart(ctxCategorias, {
+        type: 'doughnut',
+        data: {
+          labels: catLabels,
+          datasets: [
+            {
+              data: catValores,
+              backgroundColor: cores.slice(0, Math.max(catLabels.length, 1)),
+              borderWidth: 2,
+              borderColor: '#ffffff'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+  });
+}
+
+// =========================================
 // LÓGICA DO DASHBOARD (PERSISTENTE NO F5 + ISOLADO POR CONTA)
 // =========================================
 async function iniciarDashboard() {
@@ -442,7 +607,6 @@ async function iniciarDashboard() {
       `;
   }
 
-  // 1. Carrega imediatamente os dados salvos da conta atual (garante zero perda no F5)
   const salvosNaConta = StoragePorConta.getProdutosLocal();
   if (Array.isArray(salvosNaConta)) {
     produtosLista = salvosNaConta;
@@ -453,11 +617,11 @@ async function iniciarDashboard() {
 
   renderizarTabela();
   atualizarKPIs();
+  atualizarGraficos();
 
   const kpiPlan = document.getElementById('kpiActivePlan');
   if (kpiPlan) kpiPlan.textContent = planoAtual;
 
-  // 2. Sincroniza em segundo plano com o SQL da Vercel para a conta atual
   await sincronizarComServidor(emailConta);
 
   const searchInput = document.getElementById('searchInput');
@@ -511,6 +675,7 @@ async function iniciarDashboard() {
       StoragePorConta.salvarProdutosLocal(produtosLista);
       renderizarTabela();
       atualizarKPIs();
+      atualizarGraficos();
 
       form.reset();
       if (modal) {
@@ -533,7 +698,6 @@ async function sincronizarComServidor(email) {
         if (kpiPlan) kpiPlan.textContent = dadosPlano.plano;
         renderizarNavAuth();
       } else if (planoLocal !== 'Starter') {
-        // Reenvia o plano salvo da conta caso o /tmp da Vercel tenha reiniciado
         fetch('/api/planos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -545,13 +709,13 @@ async function sincronizarComServidor(email) {
     const resProd = await fetch(`/api/produtos?email=${encodeURIComponent(email)}`);
     if (resProd.ok) {
       const doServidor = await resProd.json();
-      // Se o servidor tiver dados customizados diferentes apenas do seed inicial, ou se local estiver vazio
       const localSalvo = StoragePorConta.getProdutosLocal();
       if ((!localSalvo || localSalvo.length === 0) && Array.isArray(doServidor) && doServidor.length > 0) {
         produtosLista = doServidor;
         StoragePorConta.salvarProdutosLocal(produtosLista);
         renderizarTabela();
         atualizarKPIs();
+        atualizarGraficos();
       }
     }
   } catch (erro) {
@@ -657,6 +821,7 @@ document.addEventListener('input', (e) => {
     item[campo] = valor;
     atualizarVariacaoLinha(item);
     atualizarKPIs();
+    atualizarGraficos();
   }
 
   AutoSaveSQL.salvarAlteracao(id, { [campo]: valor });
@@ -670,7 +835,10 @@ document.addEventListener('change', (e) => {
   if (!id || campo !== 'category') return;
 
   const item = produtosLista.find((p) => p.id === id);
-  if (item) item.category = el.value;
+  if (item) {
+    item.category = el.value;
+    atualizarGraficos();
+  }
 
   AutoSaveSQL.salvarAlteracao(id, { category: el.value });
 });
@@ -708,6 +876,7 @@ async function removerProduto(id) {
   StoragePorConta.salvarProdutosLocal(produtosLista);
   renderizarTabela();
   atualizarKPIs();
+  atualizarGraficos();
 
   try {
     const res = await fetch(`/api/produtos/${id}`, { method: 'DELETE' });
