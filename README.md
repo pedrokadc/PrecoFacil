@@ -10,3 +10,4 @@ Façam Commit e Push apenas quando terminarem a alteração. Se quiserem ir salv
 - **Git: Commit** — Salva suas alterações no seu computador (sempre coloque o nome do que mudou).
 - **Git: Push** — Envia seus commits para o GitHub, atualizando o projeto para todo mundo.
 - **GitHub: Publish to GitHub** — Sobe um projeto novo do seu PC para o GitHub pela primeira vez.
+.
