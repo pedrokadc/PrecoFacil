@@ -74,7 +74,6 @@ let novoProdutoCriadoId = null;
 let timerNovoProduto = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Garante que links de navegação não fiquem presos em #dashboard
   document.querySelectorAll('a[href="#dashboard"]').forEach((link) => {
     link.setAttribute('href', 'dashboard.html');
   });
@@ -82,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
     link.setAttribute('href', 'planos.html');
   });
 
-  // Remove qualquer botão residual de exportar/salvar SQL
   document.querySelectorAll('button, a').forEach((el) => {
     const txt = (el.textContent || '').toLowerCase();
     if (txt.includes('salvar sql') || txt.includes('baixar sql') || txt.includes('exportar sql')) {
@@ -165,10 +163,9 @@ function formatarMoeda(valor) {
 }
 
 // =========================================
-// HOME & LOGIN
+// HOME & LOGIN / CRIAR CONTA
 // =========================================
 function iniciarHome() {
-  // Garante que botões da Home levem diretamente às páginas reais
   document.querySelectorAll('a, button').forEach((el) => {
     const href = el.getAttribute('href');
     if (href === '#dashboard') el.setAttribute('href', 'dashboard.html');
@@ -177,21 +174,117 @@ function iniciarHome() {
 }
 
 function iniciarLogin() {
-  const form = document.querySelector('form');
-  if (!form) return;
+  const forms = Array.from(document.querySelectorAll('form'));
+  const loginForm = document.getElementById('loginForm') || forms[0] || null;
+  const registerForm = document.getElementById('registerForm') || document.getElementById('signupForm') || (forms.length > 1 ? forms[1] : null);
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const emailInput = form.querySelector('input[type="email"], input[name="email"], #email, #loginEmail');
-    const nameInput = form.querySelector('input[name="name"], #name, #registerName');
+  const loginSection = document.getElementById('loginSection') || document.getElementById('loginBox') || loginForm;
+  const registerSection = document.getElementById('registerSection') || document.getElementById('signupSection') || document.getElementById('registerBox') || registerForm;
 
-    const email = emailInput ? emailInput.value.trim() : 'usuario@precofacil.com';
-    const name = nameInput && nameInput.value.trim()
-      ? nameInput.value.trim()
-      : email.split('@')[0];
+  // Funções globais para alternar entre Entrar e Criar Conta (caso o HTML use onclick)
+  window.showRegister = window.mostrarCriarConta = function() {
+    if (loginSection && registerSection && loginSection !== registerSection) {
+      loginSection.style.display = 'none';
+      registerSection.style.display = 'block';
+    } else if (loginForm) {
+      // Caso exista apenas 1 formulário dinâmico no login.html, injeta o campo Nome e ajusta o título/botão
+      alternarFormularioUnico(loginForm, true);
+    }
+    atualizarEstadoAbasAuth('register');
+  };
 
-    localStorage.setItem('precofacil_user', JSON.stringify({ name, email }));
-    window.location.href = 'dashboard.html';
+  window.showLogin = window.mostrarLogin = function() {
+    if (loginSection && registerSection && loginSection !== registerSection) {
+      registerSection.style.display = 'none';
+      loginSection.style.display = 'block';
+    } else if (loginForm) {
+      alternarFormularioUnico(loginForm, false);
+    }
+    atualizarEstadoAbasAuth('login');
+  };
+
+  // Detecta qualquer botão, aba ou link com texto "Criar conta" / "Cadastrar" / "Entrar"
+  document.querySelectorAll('button, a, [role="tab"]').forEach((el) => {
+    if (el.type === 'submit') return;
+    const texto = (el.textContent || '').trim().toLowerCase();
+
+    if (texto.includes('criar conta') || texto.includes('cadastr') || texto.includes('registrar')) {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.mostrarCriarConta();
+      });
+    } else if (texto === 'entrar' || texto === 'login' || texto.includes('já tenho conta') || texto.includes('fazer login')) {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.mostrarLogin();
+      });
+    }
+  });
+
+  // Se a URL vier com ?mode=register ou #register, já abre direto na área de Criar Conta
+  if (window.location.search.includes('register') || window.location.hash.includes('register') || window.location.hash.includes('cadastro')) {
+    window.mostrarCriarConta();
+  }
+
+  // Submissão de todos os formulários de autenticação (Login e Criar Conta)
+  forms.forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const emailInput = form.querySelector('input[type="email"], input[name="email"], #email, #loginEmail, #registerEmail');
+      const nameInput = form.querySelector('input[name="name"], #name, #registerName, #signupName');
+
+      const email = emailInput && emailInput.value.trim()
+        ? emailInput.value.trim()
+        : 'usuario@precofacil.com';
+      const name = nameInput && nameInput.value.trim()
+        ? nameInput.value.trim()
+        : email.split('@')[0];
+
+      localStorage.setItem('precofacil_user', JSON.stringify({ name, email }));
+      AutoSaveSQL.mostrarStatus('Conta conectada com sucesso ✓');
+
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 400);
+    });
+  });
+}
+
+function alternarFormularioUnico(form, modoCadastro) {
+  let grupoNome = document.getElementById('dynamicNameGroup');
+  const titulo = document.querySelector('h1, h2');
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  if (modoCadastro) {
+    if (!grupoNome) {
+      grupoNome = document.createElement('div');
+      grupoNome.id = 'dynamicNameGroup';
+      grupoNome.className = 'form-group';
+      grupoNome.innerHTML = `
+        <label for="registerName">Nome completo ou da loja</label>
+        <input type="text" id="registerName" name="name" required placeholder="Ex: Loja Central">
+      `;
+      form.insertBefore(grupoNome, form.firstChild);
+    }
+    grupoNome.style.display = 'block';
+    if (titulo) titulo.textContent = 'Criar sua conta';
+    if (submitBtn) submitBtn.textContent = 'Criar conta e acessar';
+  } else {
+    if (grupoNome) grupoNome.style.display = 'none';
+    if (titulo) titulo.textContent = 'Entrar na sua conta';
+    if (submitBtn) submitBtn.textContent = 'Entrar';
+  }
+}
+
+function atualizarEstadoAbasAuth(ativo) {
+  document.querySelectorAll('button, a, [role="tab"]').forEach((el) => {
+    if (el.type === 'submit') return;
+    const texto = (el.textContent || '').trim().toLowerCase();
+    if (texto.includes('criar conta') || texto.includes('cadastr')) {
+      el.classList.toggle('active', ativo === 'register');
+    } else if (texto === 'entrar' || texto === 'login') {
+      el.classList.toggle('active', ativo === 'login');
+    }
   });
 }
 
@@ -199,7 +292,6 @@ function iniciarLogin() {
 // LÓGICA DO DASHBOARD (DESBLOQUEADO + AUTO-SAVE)
 // =========================================
 async function iniciarDashboard() {
-  // Libera imediatamente a visualização do conteúdo principal do Dashboard
   const mainContent = document.getElementById('dashboardMainContent');
   if (mainContent) {
     mainContent.style.display = 'block';
@@ -472,7 +564,6 @@ function iniciarPlanos() {
   const pixFields = document.getElementById('pixFields');
   const paymentForm = document.getElementById('paymentForm');
 
-  // Vincula também via addEventListener caso algum botão não tenha onclick inline
   document.querySelectorAll('.plan-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const nome = btn.dataset.plan || 'Pro';
