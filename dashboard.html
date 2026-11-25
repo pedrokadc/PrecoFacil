@@ -42,7 +42,7 @@
       <div>
         <span class="eyebrow">Painel de Gestão</span>
         <h1 class="main-title">Visão centralizada de preços</h1>
-        <p class="main-subtitle">Acompanhe valores, compare variações e gerencie seu catálogo em tempo real.</p>
+        <p class="main-subtitle">Todas as alterações são salvas automaticamente no servidor em tempo real.</p>
       </div>
       <button type="button" id="openModalBtn" class="cta-button">+ Novo produto</button>
     </div>
@@ -57,7 +57,7 @@
       <div class="kpi-card">
         <span class="kpi-label">Preço médio</span>
         <div class="kpi-value" id="kpiAvg">R$ 0,00</div>
-        <span class="kpi-trend trend-up">Atualizado agora</span>
+        <span class="kpi-trend trend-up">Sincronizado automaticamente</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">Maior oportunidade</span>
@@ -129,7 +129,7 @@
         </div>
         <div class="modal-actions">
           <button type="button" id="closeModalBtn" class="btn-cancel">Cancelar</button>
-          <button type="submit" class="cta-button">Salvar produto</button>
+          <button type="submit" id="saveProductBtn" class="cta-button">Adicionar produto</button>
         </div>
       </form>
     </div>
