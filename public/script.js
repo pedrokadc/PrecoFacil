@@ -5,7 +5,6 @@ const AutoSaveSQL = {
   timers: {},
   badgeTimer: null,
 
-  // Dispara UPDATE SQL automaticamente 600ms após parar de digitar/alterar
   salvarAlteracao(id, dados, callbackSucesso) {
     clearTimeout(this.timers[id]);
     this.mostrarStatus('Salvando na Vercel...');
@@ -31,7 +30,6 @@ const AutoSaveSQL = {
     }, 600);
   },
 
-  // Insere novo registro automaticamente no banco (INSERT)
   async criarAutomatico(dados) {
     this.mostrarStatus('Criando e salvando na Vercel...');
     const resposta = await fetch('/api/produtos', {
@@ -44,7 +42,6 @@ const AutoSaveSQL = {
     return novoItem;
   },
 
-  // Indicador visual discreto no canto inferior direito
   mostrarStatus(texto, erro = false) {
     let badge = document.getElementById('sql-autosave-status');
     if (!badge) {
@@ -77,7 +74,15 @@ let novoProdutoCriadoId = null;
 let timerNovoProduto = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Remove qualquer botão residual de exportar/salvar SQL caso exista no DOM
+  // Garante que links de navegação não fiquem presos em #dashboard
+  document.querySelectorAll('a[href="#dashboard"]').forEach((link) => {
+    link.setAttribute('href', 'dashboard.html');
+  });
+  document.querySelectorAll('a[href="#planos"]').forEach((link) => {
+    link.setAttribute('href', 'planos.html');
+  });
+
+  // Remove qualquer botão residual de exportar/salvar SQL
   document.querySelectorAll('button, a').forEach((el) => {
     const txt = (el.textContent || '').toLowerCase();
     if (txt.includes('salvar sql') || txt.includes('baixar sql') || txt.includes('exportar sql')) {
@@ -85,27 +90,72 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  const page = document.body.dataset.page;
+  const page = document.body.dataset.page || detectarPaginaPelaURL();
   renderizarNavAuth();
 
   if (page === 'dashboard') {
     iniciarDashboard();
   } else if (page === 'planos') {
     iniciarPlanos();
+  } else if (page === 'login') {
+    iniciarLogin();
+  } else {
+    iniciarHome();
   }
 });
+
+function detectarPaginaPelaURL() {
+  const path = window.location.pathname.toLowerCase();
+  if (path.includes('dashboard')) return 'dashboard';
+  if (path.includes('planos')) return 'planos';
+  if (path.includes('login')) return 'login';
+  return 'home';
+}
+
+function getUsuarioLogado() {
+  try {
+    return JSON.parse(localStorage.getItem('precofacil_user')) || null;
+  } catch {
+    return null;
+  }
+}
 
 function renderizarNavAuth() {
   const navAuthArea = document.getElementById('navAuthArea');
   if (!navAuthArea) return;
 
+  const user = getUsuarioLogado();
   const planoAtual = localStorage.getItem('precofacil_plano') || 'Starter';
-  navAuthArea.innerHTML = `
-    <span style="font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #f1f5f9; color: #0f172a;">
-      Plano: ${planoAtual}
-    </span>
-  `;
+
+  if (user) {
+    navAuthArea.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #f1f5f9; color: #0f172a;">
+          ${user.name || user.email} · ${planoAtual}
+        </span>
+        <button type="button" onclick="fazerLogout()" style="background: transparent; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;">
+          Sair
+        </button>
+      </div>
+    `;
+  } else {
+    navAuthArea.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #f1f5f9; color: #0f172a;">
+          Plano: ${planoAtual}
+        </span>
+        <a href="login.html" class="cta-button" style="padding: 8px 16px; font-size: 13px; text-decoration: none;">
+          Entrar
+        </a>
+      </div>
+    `;
+  }
 }
+
+window.fazerLogout = function() {
+  localStorage.removeItem('precofacil_user');
+  window.location.href = 'index.html';
+};
 
 function formatarMoeda(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', {
@@ -115,22 +165,65 @@ function formatarMoeda(valor) {
 }
 
 // =========================================
-// LÓGICA DO DASHBOARD (100% AUTO-SAVE)
+// HOME & LOGIN
+// =========================================
+function iniciarHome() {
+  // Garante que botões da Home levem diretamente às páginas reais
+  document.querySelectorAll('a, button').forEach((el) => {
+    const href = el.getAttribute('href');
+    if (href === '#dashboard') el.setAttribute('href', 'dashboard.html');
+    if (href === '#planos') el.setAttribute('href', 'planos.html');
+  });
+}
+
+function iniciarLogin() {
+  const form = document.querySelector('form');
+  if (!form) return;
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const emailInput = form.querySelector('input[type="email"], input[name="email"], #email, #loginEmail');
+    const nameInput = form.querySelector('input[name="name"], #name, #registerName');
+
+    const email = emailInput ? emailInput.value.trim() : 'usuario@precofacil.com';
+    const name = nameInput && nameInput.value.trim()
+      ? nameInput.value.trim()
+      : email.split('@')[0];
+
+    localStorage.setItem('precofacil_user', JSON.stringify({ name, email }));
+    window.location.href = 'dashboard.html';
+  });
+}
+
+// =========================================
+// LÓGICA DO DASHBOARD (DESBLOQUEADO + AUTO-SAVE)
 // =========================================
 async function iniciarDashboard() {
+  // Libera imediatamente a visualização do conteúdo principal do Dashboard
   const mainContent = document.getElementById('dashboardMainContent');
-  if (mainContent) mainContent.style.display = 'block';
+  if (mainContent) {
+    mainContent.style.display = 'block';
+  }
+
+  const banner = document.getElementById('userStatusBanner');
+  if (banner) {
+    const planoAtual = localStorage.getItem('precofacil_plano') || 'Starter';
+    banner.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; margin-bottom: 20px; font-size: 14px; color: #166534;">
+        <span><strong>Conectado ao servidor:</strong> Salvamento automático ativo (Plano <strong>${planoAtual}</strong>).</span>
+        <a href="planos.html" style="color: #15803d; font-weight: 600; text-decoration: underline;">Gerenciar plano</a>
+      </div>
+    `;
+  }
 
   await carregarPlanoAtivo();
   await carregarProdutos();
 
-  // Busca e filtros
   const searchInput = document.getElementById('searchInput');
   const categoryFilter = document.getElementById('categoryFilter');
   if (searchInput) searchInput.addEventListener('input', renderizarTabela);
   if (categoryFilter) categoryFilter.addEventListener('change', renderizarTabela);
 
-  // Modal de Novo Produto (Auto-save sem botão Salvar)
   const modal = document.getElementById('productModal');
   const openBtn = document.getElementById('openModalBtn');
   const closeBtn = document.getElementById('closeModalBtn');
@@ -141,6 +234,7 @@ async function iniciarDashboard() {
       novoProdutoCriadoId = null;
       if (form) form.reset();
       modal.classList.add('active');
+      modal.style.display = 'flex';
     });
   }
 
@@ -148,10 +242,10 @@ async function iniciarDashboard() {
     closeBtn.addEventListener('click', () => {
       novoProdutoCriadoId = null;
       modal.classList.remove('active');
+      modal.style.display = '';
     });
   }
 
-  // Salva automaticamente ao digitar no modal de novo produto (sem precisar de botão submit)
   if (form) {
     form.addEventListener('submit', (e) => e.preventDefault());
 
@@ -301,7 +395,6 @@ function renderizarTabela() {
   }).join('');
 }
 
-// Listener global de Auto-Save para qualquer campo editado na tabela
 document.addEventListener('input', (e) => {
   const el = e.target;
   const id = Number(el.dataset.id);
@@ -367,7 +460,7 @@ async function removerProduto(id) {
 }
 
 // =========================================
-// LÓGICA DE PLANOS (SALVA DIRETO NA VERCEL SEM BAIXAR .SQL)
+// LÓGICA DE PLANOS & MENU DE PAGAMENTOS
 // =========================================
 function iniciarPlanos() {
   const billingSwitch = document.getElementById('billingSwitch');
@@ -378,6 +471,17 @@ function iniciarPlanos() {
   const cardFields = document.getElementById('cardFields');
   const pixFields = document.getElementById('pixFields');
   const paymentForm = document.getElementById('paymentForm');
+
+  // Vincula também via addEventListener caso algum botão não tenha onclick inline
+  document.querySelectorAll('.plan-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const nome = btn.dataset.plan || 'Pro';
+      const card = btn.closest('.plan-card');
+      const priceEl = card ? card.querySelector('.plan-price') : null;
+      const mensal = priceEl ? Number(priceEl.dataset.monthly || 0) : 0;
+      window.openCheckout(nome, mensal);
+    });
+  });
 
   if (billingSwitch) {
     billingSwitch.addEventListener('click', () => {
@@ -394,6 +498,7 @@ function iniciarPlanos() {
   if (closeCheckoutBtn && checkoutModal) {
     closeCheckoutBtn.addEventListener('click', () => {
       checkoutModal.classList.remove('active');
+      checkoutModal.style.display = '';
     });
   }
 
@@ -438,7 +543,10 @@ window.openCheckout = async function(nomePlano, precoMensal) {
 
   if (checkoutTitle) checkoutTitle.textContent = `Plano ${nomePlano} (${periodo})`;
   if (checkoutPrice) checkoutPrice.textContent = `${formatarMoeda(precoFinal)}/mês`;
-  if (checkoutModal) checkoutModal.classList.add('active');
+  if (checkoutModal) {
+    checkoutModal.classList.add('active');
+    checkoutModal.style.display = 'flex';
+  }
 };
 
 async function salvarPlanoNoServidor(plano, periodo) {
@@ -458,7 +566,10 @@ async function salvarPlanoNoServidor(plano, periodo) {
       AutoSaveSQL.mostrarStatus(dados.mensagem || `Plano ${plano} salvo na Vercel ✓`);
 
       const checkoutModal = document.getElementById('checkoutModal');
-      if (checkoutModal) checkoutModal.classList.remove('active');
+      if (checkoutModal) {
+        checkoutModal.classList.remove('active');
+        checkoutModal.style.display = '';
+      }
 
       setTimeout(() => {
         window.location.href = 'dashboard.html';
