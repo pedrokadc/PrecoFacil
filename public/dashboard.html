@@ -42,7 +42,7 @@
       <div>
         <span class="eyebrow">Painel de Gestão</span>
         <h1 class="main-title">Visão centralizada de preços</h1>
-        <p class="main-subtitle">Acompanhe valores, compare variações e gerencie seu catálogo em tempo real.</p>
+        <p class="main-subtitle">Todas as alterações são salvas automaticamente no servidor em tempo real.</p>
       </div>
       <button type="button" id="openModalBtn" class="cta-button">+ Novo produto</button>
     </div>
@@ -57,7 +57,7 @@
       <div class="kpi-card">
         <span class="kpi-label">Preço médio</span>
         <div class="kpi-value" id="kpiAvg">R$ 0,00</div>
-        <span class="kpi-trend trend-up">Atualizado agora</span>
+        <span class="kpi-trend trend-up">Sincronizado automaticamente</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-label">Maior oportunidade</span>
@@ -101,14 +101,17 @@
     </div>
   </main>
 
-  <!-- MODAL PARA ADICIONAR PRODUTO -->
+  <!-- MODAL PARA ADICIONAR PRODUTO (SALVAMENTO AUTOMÁTICO, SEM BOTÃO SALVAR) -->
   <div class="modal-overlay" id="productModal">
     <div class="modal-box">
       <h3>Adicionar novo produto</h3>
+      <p style="font-size: 13px; color: #64748b; margin-bottom: 14px;">
+        O produto é criado e salvo automaticamente na Vercel assim que você preenche o nome.
+      </p>
       <form id="productForm">
         <div class="form-group">
           <label for="prodName">Nome do produto</label>
-          <input type="text" id="prodName" required placeholder="Ex: Camisa Linho Azul">
+          <input type="text" id="prodName" placeholder="Ex: Camisa Linho Azul">
         </div>
         <div class="form-group">
           <label for="prodCategory">Categoria</label>
@@ -121,15 +124,14 @@
         </div>
         <div class="form-group">
           <label for="prodPrice">Seu Preço (R$)</label>
-          <input type="number" id="prodPrice" step="0.01" required placeholder="149.90">
+          <input type="number" id="prodPrice" step="0.01" placeholder="149.90">
         </div>
         <div class="form-group">
           <label for="prodMarket">Média do Mercado (R$)</label>
-          <input type="number" id="prodMarket" step="0.01" required placeholder="169.90">
+          <input type="number" id="prodMarket" step="0.01" placeholder="169.90">
         </div>
         <div class="modal-actions">
-          <button type="button" id="closeModalBtn" class="btn-cancel">Cancelar</button>
-          <button type="submit" class="cta-button">Salvar produto</button>
+          <button type="button" id="closeModalBtn" class="btn-cancel">Fechar</button>
         </div>
       </form>
     </div>
